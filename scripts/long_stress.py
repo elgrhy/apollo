@@ -67,7 +67,7 @@ def start_node(i):
     time.sleep(1)
     try:
         requests.post(f"http://127.0.0.1:{port}/agents/add", 
-                      headers={"X-Mars-Key": SECRET}, 
+                      headers={"X-Apollo-Key": SECRET},
                       json={"source": os.path.abspath("examples/openclaw")}, 
                       timeout=5)
     except: pass
@@ -93,7 +93,7 @@ def run_causal_chaos():
             # 1. Spawn load with CID
             target = random.randint(0, NODE_COUNT - 1)
             requests.post(f"http://127.0.0.1:{BASE_PORT+target}/agents/run", 
-                          headers={"X-Mars-Key": SECRET, "X-Mars-Correlation-Id": correlation_id}, 
+                          headers={"X-Apollo-Key": SECRET, "X-Apollo-Correlation-Id": correlation_id},
                           json={"agent": "openclaw", "tenant": "cert-user"}, timeout=5)
 
             # 2. Chaos with CID

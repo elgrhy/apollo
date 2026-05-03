@@ -19,27 +19,27 @@ jobs:
           # macOS Apple Silicon (native)
           - target: aarch64-apple-darwin
             os: macos-latest
-            asset: mars-macos-arm64
+            asset: apollo-macos-arm64
 
           # macOS Intel — cross-compiled from arm64 runner
           - target: x86_64-apple-darwin
             os: macos-latest
-            asset: mars-macos-x86_64
+            asset: apollo-macos-x86_64
 
           # Linux x86_64 (static musl — works on any Linux distro, Docker, etc.)
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
-            asset: mars-linux-x86_64
+            asset: apollo-linux-x86_64
 
           # Linux ARM64 (Raspberry Pi, servers, Android Termux)
           - target: aarch64-unknown-linux-musl
             os: ubuntu-latest
-            asset: mars-linux-arm64
+            asset: apollo-linux-arm64
 
           # Windows x86_64
           - target: x86_64-pc-windows-msvc
             os: windows-latest
-            asset: mars-windows-x86_64.exe
+            asset: apollo-windows-x86_64.exe
 
     steps:
       - uses: actions/checkout@v4
@@ -80,14 +80,14 @@ jobs:
       - name: Stage binary (Unix)
         if: runner.os != 'Windows'
         run: |
-          cp target/${{ matrix.target }}/release/mars ${{ matrix.asset }}
+          cp target/${{ matrix.target }}/release/apollo ${{ matrix.asset }}
           shasum -a 256 ${{ matrix.asset }} > ${{ matrix.asset }}.sha256
 
       - name: Stage binary (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Copy-Item "target\${{ matrix.target }}\release\mars.exe" "${{ matrix.asset }}"
+          Copy-Item "target\${{ matrix.target }}\release\apollo.exe" "${{ matrix.asset }}"
           $hash = (Get-FileHash "${{ matrix.asset }}" -Algorithm SHA256).Hash.ToLower()
           "$hash  ${{ matrix.asset }}" | Out-File -Encoding ascii "${{ matrix.asset }}.sha256"
 
@@ -99,10 +99,9 @@ jobs:
             ${{ matrix.asset }}.sha256
 
   publish:
-    name: Publish to marsatlas
+    name: Publish Release
     needs: build
     runs-on: ubuntu-latest
-    # Run even if some builds failed — publish whatever succeeded
     if: always() && needs.build.result != 'skipped'
     steps:
       - uses: actions/checkout@v4
@@ -115,48 +114,19 @@ jobs:
       - name: List artifacts
         run: ls -lh artifacts/
 
-      - name: Sync install.sh to marsatlas
-        env:
-          GH_TOKEN: ${{ secrets.MARSATLAS_PAT }}
-        run: |
-          # Clone marsatlas, update install.sh, push
-          git config --global user.email "ci@devjsx.com"
-          git config --global user.name "MARS CI"
-          git clone https://x-access-token:${GH_TOKEN}@github.com/elgrhy/marsatlas.git marsatlas-repo
-          cp install.sh marsatlas-repo/install.sh
-          cd marsatlas-repo
-          git add install.sh
-          git diff --cached --quiet || git commit -m "Update install.sh for ${{ github.ref_name }}"
-          git push
-
-      - name: Create GitHub Release on marsatlas
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          repository: elgrhy/marsatlas
-          token: ${{ secrets.MARSATLAS_PAT }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: ${{ github.ref_name }}
-          name: "MARS ${{ github.ref_name }}"
+          name: "Apollo ${{ github.ref_name }}"
           body: |
-            ## What's new in ${{ github.ref_name }}
-
-            ### v3.2.0 — Cranberry + PicoClaw binary + OpenClaw test fixes
-            - **Cranberry agent**: DEVJSX research & analysis agent — binary distributed via elgrhy/cranberry-dist (public, binary-only; source is private)
-            - **PicoClaw fixed**: now downloads from sipeed/picoclaw (Go binary) instead of the wrong openclaw/picoclaw repo
-            - **OpenClaw**: DEVJSX-hosted path fully tested (no Docker required); Docker detection test added
-            - **4 agents in selection menu**: ATLAS, Cranberry, OpenClaw, PicoClaw
-
-            ### Agent support matrix
-            | Agent | Source | Deployment | MARS role |
-            |---|---|---|---|
-            | ATLAS | DEVJSX | In-process LLM | Genesis protocol → handover |
-            | Cranberry | DEVJSX (elgrhy/cranberry-dist) | Local process (port 5100) | Download binary + spawn + health check |
-            | OpenClaw | openclaw.ai | Docker / AWS Fargate / Hosted | Official installer + security hardening |
-            | PicoClaw | sipeed/picoclaw | Local binary (port 18800) | Download binary + spawn + health check |
+            ## Apollo ${{ github.ref_name }}
 
             ## Install / Upgrade
 
             ```bash
-            curl -fsSL https://raw.githubusercontent.com/elgrhy/marsatlas/main/install.sh | bash
+            curl -fsSL https://raw.githubusercontent.com/elgrhy/apollo/main/get.apollo.sh | bash
             ```
 
             **Existing users** — re-run the install command above to upgrade in-place automatically.
@@ -165,11 +135,11 @@ jobs:
 
             | Platform | Binary |
             | --- | --- |
-            | macOS Apple Silicon | `mars-macos-arm64` |
-            | macOS Intel | `mars-macos-x86_64` |
-            | Linux x86_64 | `mars-linux-x86_64` |
-            | Linux ARM64 / Android Termux | `mars-linux-arm64` |
-            | Windows x86_64 | `mars-windows-x86_64.exe` |
+            | macOS Apple Silicon | `apollo-macos-arm64` |
+            | macOS Intel | `apollo-macos-x86_64` |
+            | Linux x86_64 | `apollo-linux-x86_64` |
+            | Linux ARM64 / Android Termux | `apollo-linux-arm64` |
+            | Windows x86_64 | `apollo-windows-x86_64.exe` |
 
             Verify with the matching `.sha256` file.
           files: artifacts/**

@@ -1,8 +1,8 @@
 name: "hello-agent"
 version: "1.0.0"
-description: "A simple hello world agent for MARS Provider Edition"
+description: "A simple hello world agent for Apollo Provider Edition"
 runtime:
-  entry: "echo 'Hello MARS'"
+  entry: "echo 'Hello Apollo'"
   kind: "shell"
   model: "none"
   tools: []
