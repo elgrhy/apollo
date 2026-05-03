@@ -1,4 +1,6 @@
 /target/
+.apollo/
+.DS_Store
 
 # Credentials — never commit API keys
 .env
