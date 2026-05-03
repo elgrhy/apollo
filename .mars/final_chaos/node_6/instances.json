@@ -1,0 +1,36 @@
+[
+  {
+    "id": "openclaw-6224",
+    "agent_id": "openclaw",
+    "tenant_id": "tenant_79",
+    "status": "running",
+    "pid": 31419,
+    "port": 38728,
+    "stats": {
+      "cpu_usage_pct": 0.0,
+      "memory_mb": 0,
+      "uptime_secs": 0,
+      "restart_count": 8,
+      "last_restart": 1777796224,
+      "is_failed": false
+    },
+    "created_at": 1777796224
+  },
+  {
+    "id": "openclaw-6312",
+    "agent_id": "openclaw",
+    "tenant_id": "tenant_98",
+    "status": "running",
+    "pid": 31420,
+    "port": 46452,
+    "stats": {
+      "cpu_usage_pct": 0.0,
+      "memory_mb": 0,
+      "uptime_secs": 0,
+      "restart_count": 1,
+      "last_restart": 1777796312,
+      "is_failed": false
+    },
+    "created_at": 1777796312
+  }
+]

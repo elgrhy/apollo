@@ -1,0 +1,70 @@
+[
+  {
+    "id": "openclaw-6762",
+    "agent_id": "openclaw",
+    "tenant_id": "cert-user",
+    "status": "running",
+    "pid": 32409,
+    "port": 22416,
+    "stats": {
+      "cpu_usage_pct": 0.0,
+      "memory_mb": 0,
+      "uptime_secs": 0,
+      "restart_count": 2,
+      "last_restart": 1777796762,
+      "is_failed": false
+    },
+    "created_at": 1777796762
+  },
+  {
+    "id": "openclaw-6946",
+    "agent_id": "openclaw",
+    "tenant_id": "cert-user",
+    "status": "running",
+    "pid": 32410,
+    "port": 22416,
+    "stats": {
+      "cpu_usage_pct": 0.0,
+      "memory_mb": 0,
+      "uptime_secs": 0,
+      "restart_count": 2,
+      "last_restart": 1777796946,
+      "is_failed": false
+    },
+    "created_at": 1777796946
+  },
+  {
+    "id": "openclaw-6976",
+    "agent_id": "openclaw",
+    "tenant_id": "cert-user",
+    "status": "running",
+    "pid": 32360,
+    "port": 22416,
+    "stats": {
+      "cpu_usage_pct": 0.0,
+      "memory_mb": 0,
+      "uptime_secs": 0,
+      "restart_count": 1,
+      "last_restart": 1777796976,
+      "is_failed": false
+    },
+    "created_at": 1777796976
+  },
+  {
+    "id": "openclaw-7066",
+    "agent_id": "openclaw",
+    "tenant_id": "cert-user",
+    "status": "running",
+    "pid": 32361,
+    "port": 22416,
+    "stats": {
+      "cpu_usage_pct": 0.0,
+      "memory_mb": 0,
+      "uptime_secs": 0,
+      "restart_count": 1,
+      "last_restart": 1777797066,
+      "is_failed": false
+    },
+    "created_at": 1777797066
+  }
+]

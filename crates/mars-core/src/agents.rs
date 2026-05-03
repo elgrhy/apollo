@@ -1,9 +1,9 @@
-//! Persistent agent registry — reads/writes `.mars/agents.json`.
+//! Persistent agent registry — reads/writes `base_dir/agents.json`.
 
 use anyhow::{Context, Result, anyhow};
 use std::{
     fs,
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
 use sha2::Digest;
@@ -11,8 +11,8 @@ use sha2::Digest;
 use crate::types::{AgentRecord, AgentSpec, NodeProfile};
 use crate::detect::detect_node_capabilities;
 
-fn agents_json_path() -> PathBuf {
-    PathBuf::from(".mars/agents.json")
+fn agents_json_path(base_dir: &Path) -> PathBuf {
+    base_dir.join("agents.json")
 }
 
 /// Current Unix timestamp in seconds.
@@ -23,9 +23,9 @@ pub fn now_unix() -> u64 {
         .as_secs()
 }
 
-/// Load all agent records from `.mars/agents.json`.
-pub fn load_agent_registry() -> Result<Vec<AgentRecord>> {
-    let path = agents_json_path();
+/// Load all agent records from `base_dir/agents.json`.
+pub fn load_agent_registry(base_dir: &Path) -> Result<Vec<AgentRecord>> {
+    let path = agents_json_path(base_dir);
     if !path.exists() {
         return Ok(vec![]);
     }
@@ -35,19 +35,18 @@ pub fn load_agent_registry() -> Result<Vec<AgentRecord>> {
         .with_context(|| format!("Failed to parse {}", path.display()))
 }
 
-/// Overwrite `.mars/agents.json` with the given slice of records.
-pub fn save_agent_registry(records: &[AgentRecord]) -> Result<()> {
-    let mars_dir = PathBuf::from(".mars");
-    if !mars_dir.exists() {
-        fs::create_dir_all(&mars_dir).context("Failed to create .mars/ directory")?;
+/// Overwrite `base_dir/agents.json` with the given slice of records.
+pub fn save_agent_registry(base_dir: &Path, records: &[AgentRecord]) -> Result<()> {
+    if !base_dir.exists() {
+        fs::create_dir_all(base_dir).context("Failed to create base directory")?;
     }
     let json = serde_json::to_string_pretty(records).context("Failed to serialise agent registry")?;
-    fs::write(agents_json_path(), json).context("Failed to write agents.json")?;
+    fs::write(agents_json_path(base_dir), json).context("Failed to write agents.json")?;
     Ok(())
 }
 
-/// Validates an agent package against node capabilities and registers it.
-pub async fn register_agent_package(package_dir: PathBuf) -> Result<AgentRecord> {
+/// Validates an agent package against node capabilities and registers it in `base_dir`.
+pub async fn register_agent_package(base_dir: &Path, package_dir: PathBuf) -> Result<AgentRecord> {
     let yaml_path = package_dir.join("agent.yaml");
     if !yaml_path.exists() {
         return Err(anyhow!("agent.yaml not found in {:?}", package_dir));
@@ -59,13 +58,12 @@ pub async fn register_agent_package(package_dir: PathBuf) -> Result<AgentRecord>
     let node = detect_node_capabilities().await?;
     validate_agent_compatibility(&spec, &node)?;
 
-    // Global Store: Copy package content to .mars/agents/{name}
-    let global_agent_dir = PathBuf::from(".mars/agents").join(&spec.name);
+    // Global Store: Copy package content to base_dir/agents/{name}
+    let global_agent_dir = base_dir.join("agents").join(&spec.name);
     if !global_agent_dir.exists() {
         fs::create_dir_all(&global_agent_dir)?;
     }
     
-    // Simple copy for all files in package_dir
     for entry in fs::read_dir(&package_dir)? {
         let entry = entry?;
         let dest = global_agent_dir.join(entry.file_name());
@@ -74,7 +72,6 @@ pub async fn register_agent_package(package_dir: PathBuf) -> Result<AgentRecord>
         }
     }
 
-    // Generate checksum
     let checksum = format!("{:x}", sha2::Sha256::digest(yaml_content.as_bytes()));
 
     let record = AgentRecord {
@@ -84,37 +81,29 @@ pub async fn register_agent_package(package_dir: PathBuf) -> Result<AgentRecord>
         created_at: now_unix(),
     };
 
-    let mut records = load_agent_registry()?;
+    let mut records = load_agent_registry(base_dir)?;
     if let Some(pos) = records.iter().position(|r| r.id == record.id) {
         records[pos] = record.clone();
     } else {
         records.push(record.clone());
     }
-    save_agent_registry(&records)?;
+    save_agent_registry(base_dir, &records)?;
 
     Ok(record)
 }
 
 fn validate_agent_compatibility(spec: &AgentSpec, node: &NodeProfile) -> Result<()> {
-    // Check OS
     if !spec.compatibility.os.is_empty() && !spec.compatibility.os.contains(&node.os) {
         return Err(anyhow!("Agent incompatible with OS: {}", node.os));
     }
-
-    // Check Arch
     if !spec.compatibility.arch.is_empty() && !spec.compatibility.arch.contains(&node.arch) {
         return Err(anyhow!("Agent incompatible with Architecture: {}", node.arch));
     }
-
-    // Check Runtime
     if !node.runtimes.contains(&spec.runtime.kind) {
         return Err(anyhow!("Required runtime '{}' not found on node", spec.runtime.kind));
     }
-
-    // Check LLM
     if spec.llm.required && node.llm.is_none() && !spec.llm.fallback {
         return Err(anyhow!("Agent requires LLM but none found on node and fallback disabled"));
     }
-
     Ok(())
 }

@@ -1,0 +1,54 @@
+[
+  {
+    "id": "openclaw",
+    "spec": {
+      "name": "openclaw",
+      "version": "1.0.0",
+      "runtime": {
+        "type": "python3",
+        "entry": "main.py",
+        "env": null
+      },
+      "llm": {
+        "required": true,
+        "provider": "any",
+        "fallback": true
+      },
+      "capabilities": [
+        "chat",
+        "tool-use",
+        "researcher"
+      ],
+      "triggers": [
+        "api",
+        "webhook"
+      ],
+      "resources": {
+        "cpu": 0.5,
+        "memory": "512mb",
+        "timeout": 120
+      },
+      "permissions": {
+        "network": "full",
+        "filesystem": "sandbox",
+        "processes": "restricted"
+      },
+      "compatibility": {
+        "os": [
+          "linux",
+          "darwin"
+        ],
+        "arch": [
+          "x86_64",
+          "aarch64"
+        ]
+      },
+      "restart_policy": {
+        "max_restarts": 3,
+        "window_secs": 60
+      }
+    },
+    "checksum": "e98a77e4489c935548346006e463409009f9c9ec94f586bdcc23ff13e3f11d12",
+    "created_at": 1777797361
+  }
+]

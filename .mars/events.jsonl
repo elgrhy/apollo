@@ -1,0 +1,19 @@
+{"timestamp":1777797357,"node_id":"system","level":"WARN","category":"HEALTH","action":"NODE_RECOVER","message":"Recovered agent 'openclaw' for tenant 'cert-user'","metadata":null}
+{"timestamp":1777797357,"node_id":"system","level":"WARN","category":"HEALTH","action":"NODE_RECOVER","message":"Recovered agent 'openclaw' for tenant 'cert-user'","metadata":null}
+{"timestamp":1777797358,"node_id":"system","level":"WARN","category":"HEALTH","action":"NODE_RECOVER","message":"Recovered agent 'openclaw' for tenant 'cert-user'","metadata":null}
+{"timestamp":1777797359,"node_id":"system","level":"WARN","category":"HEALTH","action":"NODE_RECOVER","message":"Recovered agent 'openclaw' for tenant 'cert-user'","metadata":null}
+{"timestamp":1777797360,"node_id":"system","level":"WARN","category":"HEALTH","action":"NODE_RECOVER","message":"Recovered agent 'openclaw' for tenant 'cert-user'","metadata":null}
+{"timestamp":1777797361,"node_id":"system","level":"WARN","category":"HEALTH","action":"NODE_RECOVER","message":"Recovered agent 'openclaw' for tenant 'cert-user'","metadata":null}
+{"timestamp":1777797361,"node_id":"system","level":"WARN","category":"HEALTH","action":"NODE_RECOVER","message":"Recovered agent 'openclaw' for tenant 'cert-user'","metadata":null}
+{"timestamp":1777797362,"node_id":"system","level":"WARN","category":"HEALTH","action":"NODE_RECOVER","message":"Recovered agent 'openclaw' for tenant 'cert-user'","metadata":null}
+{"timestamp":1777797362,"node_id":"system","level":"WARN","category":"HEALTH","action":"NODE_RECOVER","message":"Recovered agent 'openclaw' for tenant 'cert-user'","metadata":null}
+{"timestamp":1777797362,"node_id":"system","level":"WARN","category":"HEALTH","action":"NODE_RECOVER","message":"Recovered agent 'openclaw' for tenant 'cert-user'","metadata":null}
+{"timestamp":1777797362,"node_id":"system","level":"WARN","category":"HEALTH","action":"NODE_RECOVER","message":"Recovered agent 'openclaw' for tenant 'cert-user'","metadata":null}
+{"timestamp":1777797363,"node_id":"system","level":"WARN","category":"HEALTH","action":"NODE_RECOVER","message":"Recovered agent 'openclaw' for tenant 'cert-user'","metadata":null}
+{"timestamp":1777797366,"node_id":"system","level":"WARN","category":"HEALTH","action":"NODE_RECOVER","message":"Recovered agent 'openclaw' for tenant 'cert-user'","metadata":null}
+{"timestamp":1777797368,"node_id":"node-7367","level":"INFO","category":"LIFECYCLE","action":"AGENT_START","message":"Agent 'openclaw' started for tenant 'cert-user'","metadata":null}
+{"timestamp":1777797398,"node_id":"node-7367","level":"INFO","category":"LIFECYCLE","action":"AGENT_START","message":"Agent 'openclaw' started for tenant 'cert-user'","metadata":null}
+{"timestamp": 1777797398, "node_id": "chaos-engine", "level": "FATAL", "category": "LIFECYCLE", "action": "CHAOS_STORM", "message": "Forced 3-node crash storm"}
+{"timestamp":1777797428,"node_id":"node-7361","level":"INFO","category":"LIFECYCLE","action":"AGENT_START","message":"Agent 'openclaw' started for tenant 'cert-user'","metadata":null}
+{"timestamp":1777797430,"node_id":"system","level":"WARN","category":"HEALTH","action":"NODE_RECOVER","message":"Recovered agent 'openclaw' for tenant 'cert-user'","metadata":null}
+{"timestamp":1777797430,"node_id":"system","level":"WARN","category":"HEALTH","action":"NODE_RECOVER","message":"Recovered agent 'openclaw' for tenant 'cert-user'","metadata":null}

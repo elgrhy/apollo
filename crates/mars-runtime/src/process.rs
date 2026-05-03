@@ -84,6 +84,9 @@ impl AgentRuntime for ProcessRuntime {
         let code_dir = self.agent_code_dir(&spec.name);
         let port = self.compute_port(tenant_id, &spec.name);
         let log_path = self.tenant_log_file(tenant_id, &spec.name);
+        
+        fs::create_dir_all(&workspace)?;
+        if let Some(parent) = log_path.parent() { fs::create_dir_all(parent)?; }
 
         self.rotate_logs(&log_path)?;
 
@@ -110,9 +113,20 @@ impl AgentRuntime for ProcessRuntime {
         cmd.stdout(Stdio::from(log_file.try_clone()?));
         cmd.stderr(Stdio::from(log_file));
 
+        // 100% Stability: Pre-flight cleanup of orphans in this workspace
+        let abs_workspace = fs::canonicalize(&workspace).unwrap_or_else(|_| workspace.clone());
+        let mut sys = System::new_all();
+        sys.refresh_processes();
+        for proc in sys.processes().values() {
+            // Check environment for the unique workspace marker
+            if proc.environ().iter().any(|e| e.contains(&format!("MARS_WORKSPACE={}", abs_workspace.to_string_lossy()))) {
+                let _ = signal::kill(NixPid::from_raw(-(proc.pid().as_u32() as i32)), Signal::SIGKILL);
+            }
+        }
+
         // 100% Security: Strictly Sanitized Env + Network Kill-switches
         cmd.env_clear();
-        cmd.env("PATH", "/usr/bin:/bin:/usr/local/bin");
+        cmd.env("PATH", "/usr/bin:/bin:/usr/local/bin:/usr/sbin:/sbin:/Library/Frameworks/Python.framework/Versions/3.13/bin");
         cmd.env("MARS_TENANT_ID", tenant_id);
         cmd.env("MARS_AGENT_NAME", &spec.name);
         cmd.env("MARS_PORT", port.to_string());

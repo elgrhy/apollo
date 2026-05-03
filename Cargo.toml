@@ -2,7 +2,7 @@
 members = [
     "crates/mars-core",
     "crates/mars-runtime",
-    "crates/mars-node",
+    "crates/mars-node", "crates/mars-hub",
 ]
 resolver = "2"
 

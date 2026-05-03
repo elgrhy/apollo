@@ -1,0 +1,19 @@
+[
+  {
+    "id": "openclaw-6389",
+    "agent_id": "openclaw",
+    "tenant_id": "tenant_57",
+    "status": "running",
+    "pid": 31452,
+    "port": 50862,
+    "stats": {
+      "cpu_usage_pct": 0.0,
+      "memory_mb": 0,
+      "uptime_secs": 0,
+      "restart_count": 0,
+      "last_restart": 1777796389,
+      "is_failed": false
+    },
+    "created_at": 1777796389
+  }
+]

@@ -159,3 +159,29 @@ pub struct AgentCompatibility {
     pub os:   Vec<String>,
     pub arch: Vec<String>,
 }
+
+// ── Event Spine ──────────────────────────────────────────────────────────────
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MarsEvent {
+    pub timestamp: u64,
+    pub node_id:   String,
+    pub level:     String, // INFO, WARN, ERROR, FATAL
+    pub category:  String, // LIFECYCLE, RESOURCE, SECURITY, HEALTH
+    pub action:    String, // AGENT_START, AGENT_STOP, NODE_RECOVER, etc.
+    pub message:   String,
+    pub metadata:  Option<HashMap<String, String>>,
+}
+
+pub fn log_event(event: MarsEvent) {
+    let log_path = std::path::PathBuf::from(".mars/events.jsonl");
+    if let Some(parent) = log_path.parent() { let _ = std::fs::create_dir_all(parent); }
+    if let Ok(json) = serde_json::to_string(&event) {
+        use std::io::Write;
+        if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(log_path) {
+            let _ = writeln!(file, "{}", json);
+        }
+    }
+    // Also print to stdout for script visibility
+    println!("[{}] {} | {} | {}", event.level, event.category, event.action, event.message);
+}
