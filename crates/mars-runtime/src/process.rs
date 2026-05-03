@@ -1,5 +1,5 @@
 use crate::AgentRuntime;
-use mars_core::types::{AgentSpec, AgentRecord, AgentKind, AgentDeployment};
+use mars_core::types::{AgentSpec, AgentRecord};
 use async_trait::async_trait;
 use anyhow::{Result, Context};
 use std::process::Stdio;
@@ -56,11 +56,10 @@ impl AgentRuntime for ProcessRuntime {
 
         Ok(AgentRecord {
             id: spec.name.clone(),
-            kind: AgentKind::Atlas, // Defaulting for now
-            deployment: AgentDeployment::LocalProcess,
-            endpoint: None, // Will be filled if the agent exposes an API
+            spec: spec.clone(),
             created_at,
             status: "running".to_string(),
+            endpoint: None, // Will be filled if the agent exposes an API
         })
     }
 

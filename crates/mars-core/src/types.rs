@@ -123,55 +123,19 @@ pub struct LicenseCache {
     pub validated_at: u64,
 }
 
-// ── Agent registry ────────────────────────────────────────────────────────────
+// ── Agent Records ─────────────────────────────────────────────────────────────
 
-/// The kind of agent that was created.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum AgentKind {
-    Atlas,
-    OpenClawLocal,
-    OpenClawCloud,
-    PicoClaw,
-    Cranberry,
-}
-
-/// Where the agent is actually deployed.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum AgentDeployment {
-    LocalProcess,
-    LocalDocker,
-    AwsFargate,
-    DevjsxHosted,
-}
-
-/// One persistent entry in `.mars/agents.json`.
+/// One persistent entry in the node's agent registry.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AgentRecord {
-    /// Short, unique identifier — e.g. `"atlas"`, `"openclaw-local"`, `"picoclaw"`.
     pub id:         String,
-    pub kind:       AgentKind,
-    pub deployment: AgentDeployment,
-    /// HTTP base URL for health checks and routing (None for in-process agents).
-    pub endpoint:   Option<String>,
-    /// Unix timestamp (seconds since epoch) of when the agent was created.
+    pub spec:       AgentSpec,
+    /// Unix timestamp (seconds since epoch) of when the agent was created/installed.
     pub created_at: u64,
-    /// `"running"` | `"stopped"` | `"unknown"` | `"in-process"`
+    /// `"running"` | `"stopped"` | `"error"` | `"installed"`
     pub status:     String,
-}
-
-impl AgentRecord {
-    /// Lowercase string label for the agent kind — used for matching in chat intent detection.
-    pub fn kind_str(&self) -> &'static str {
-        match self.kind {
-            AgentKind::Atlas         => "atlas",
-            AgentKind::OpenClawLocal => "openclaw-local",
-            AgentKind::OpenClawCloud => "openclaw-cloud",
-            AgentKind::PicoClaw      => "picoclaw",
-            AgentKind::Cranberry     => "cranberry",
-        }
-    }
+    /// Optional endpoint if the agent exposes a service.
+    pub endpoint:   Option<String>,
 }
 // ── MARS Provider Edition — Agent Spec ──────────────────────────────────────
 
