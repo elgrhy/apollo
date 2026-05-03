@@ -5,7 +5,7 @@ This document provides the formal specifications and security guarantees require
 ## 1. Security & Compliance Checklist
 | Requirement | Status | Implementation Detail |
 | :--- | :--- | :--- |
-| **Identity Isolation** | ✅ | Dedicated `MARS_TENANT_ID` and workspace sandboxing. |
+| **Identity Isolation** | ✅ | Dedicated `APOLLO_TENANT_ID` and workspace sandboxing. |
 | **Process Control** | ✅ | PID-level isolation via Unix Process Groups. |
 | **Data Integrity** | ✅ | Atomic JSON state flushing with boot-time reconstruction. |
 | **Audit Trail** | ✅ | Deterministic Causal Event Spine (`events.jsonl`). |
