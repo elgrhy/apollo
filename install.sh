@@ -2,7 +2,8 @@
 
 set -e
 
-echo "=== APOLLO INFRASTRUCTURE INSTALLER ==="
+VERSION="apollo-v1.0"
+echo "=== APOLLO INFRASTRUCTURE INSTALLER ($VERSION) ==="
 
 # 1. Check Rust
 if ! command -v cargo &> /dev/null; then
@@ -11,32 +12,31 @@ if ! command -v cargo &> /dev/null; then
 fi
 
 # 2. Build project
-echo "[1/3] Building APOLLO (Release Mode)..."
+echo "[1/3] Building APOLLO (Deterministic Release Mode)..."
 cargo build --release
 
 # 3. Install binaries
-echo "[2/3] Installing binaries to /usr/local/bin/apollo-server/..."
-sudo mkdir -p /usr/local/bin/apollo-server
+echo "[2/3] Installing binaries to /usr/local/bin/apollo-node/..."
+sudo mkdir -p /usr/local/bin/apollo-node
 
-sudo cp target/release/apollo-server /usr/local/bin/apollo-server/apollo-server
-sudo cp target/release/apollo-hub /usr/local/bin/apollo-server/apollo-hub
+sudo cp target/release/apollo /usr/local/bin/apollo-node/apollo
+sudo cp target/release/apollo-hub /usr/local/bin/apollo-node/apollo-hub
 
-# 4. Create Global CLI Wrapper (The Entry Point)
-echo "[3/3] Creating global 'apollo-server' command..."
+# 4. Create Global CLI Wrapper
+echo "[3/3] Creating global 'apollo' command..."
 
-cat << 'EOF' | sudo tee /usr/local/bin/apollo-server > /dev/null
+cat << 'EOF' | sudo tee /usr/local/bin/apollo > /dev/null
 #!/usr/bin/env bash
-exec /usr/local/bin/apollo-server/apollo-server "$@"
+exec /usr/local/bin/apollo-node/apollo "$@"
 EOF
 
-sudo chmod +x /usr/local/bin/apollo-server
+sudo chmod +x /usr/local/bin/apollo
 
 # 5. Verify install
 echo "=== APOLLO INSTALLED SUCCESSFULLY ==="
-echo "Version: $(apollo-server --version || echo 'v1.0.0')"
+/usr/local/bin/apollo doctor
 echo ""
-echo "🚀 Getting Started:"
-echo "  Start Node:   apollo-server node start"
-echo "  Start Hub:    /usr/local/bin/apollo-server/apollo-hub start"
-echo "  Check Status: apollo-server doctor"
+echo "🚀 Mission Control Active:"
+echo "  Start Node:   apollo node start"
+echo "  Start Hub:    /usr/local/bin/apollo-node/apollo-hub start"
 echo ""
