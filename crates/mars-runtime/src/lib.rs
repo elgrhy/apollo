@@ -1,25 +1,29 @@
 use async_trait::async_trait;
-use mars_core::types::{AgentSpec, AgentRecord};
+use mars_core::types::{AgentSpec, AgentInstance};
 use anyhow::Result;
 
 #[async_trait]
 pub trait AgentRuntime {
-    /// Prepare the environment for the agent (e.g., download binaries, create sandbox).
+    /// Prepare the environment for the agent globally.
     async fn install(&self, spec: &AgentSpec) -> Result<()>;
     
-    /// Start the agent and return a record of the running instance.
-    async fn start(&self, spec: &AgentSpec) -> Result<AgentRecord>;
+    /// Prepare a tenant-specific sandbox for the agent.
+    async fn activate(&self, tenant_id: &str, spec: &AgentSpec) -> Result<()>;
+    
+    /// Start an agent instance for a specific tenant.
+    async fn start(&self, tenant_id: &str, spec: &AgentSpec) -> Result<AgentInstance>;
     
     /// Stop a running agent instance.
-    async fn stop(&self, id: &str) -> Result<()>;
+    async fn stop(&self, pid: u32) -> Result<()>;
     
     /// Get the current status of an agent instance.
-    async fn status(&self, id: &str) -> Result<String>;
+    async fn status(&self, instance_id: &str) -> Result<String>;
     
     /// Perform a health check on the agent.
-    async fn health_check(&self, id: &str) -> Result<bool>;
+    async fn health_check(&self, instance_id: &str) -> Result<bool>;
+
+    /// Gracefully shutdown all active instances.
+    async fn shutdown(&self) -> Result<()>;
 }
 
 pub mod process;
-// pub mod docker; // Future
-// pub mod wasm;   // Future

@@ -1,52 +1,38 @@
-# MARS Provider Edition — System Specification
+# MARS System Specification: Provider-Grade Standalone Engine
 
 ## 1. Core Vision
-MARS Provider Edition is a multi-tenant AI agent runtime layer designed for hosting providers (Hostinger, GoDaddy, Google, AWS, etc.). It enables providers to offer AI agent capabilities to their customers instantly, safely, and at scale.
+MARS is a **headless execution engine** that replaces generic virtualization with **AI-native capability isolation**. It is built for infrastructure providers who need to host thousands of independent agent workloads with strict resource governance and security.
 
-## 2. System Architecture
+## 2. Architecture: "The Standalone Node"
+MARS prioritizes a **standalone-first** architecture. Each node is self-contained and exposes a management API for direct integration with provider control panels.
 
-### A. MARS Node Agent (Rust binary)
-- **Lifecycle Management**: Start, stop, pause, and update agents.
-- **Resource Enforcement**: CPU/Memory limits per tenant/agent using cgroups or similar.
-- **Sandboxing**: Isolated execution environments (Processes, Containers, or WASM).
-- **Local Model Routing**: Adapter for local LLMs (llama.cpp) or remote APIs.
+### A. MARS Node (Rust Daemon)
+- **Headless API**: REST-based lifecycle management (Add, Run, Stop, Metrics).
+- **Multi-Tenant Isolation**: Cryptographic tenant separation and workspace-locked filesystems.
+- **Resource Governance**: Active CPU/Memory policing via `sysinfo` and `nix` process groups.
+- **Node Identity**: Deterministic capability detection and hardware profiling.
 
-### B. Control Plane (API)
-- **Tenant Management**: Isolation of user data and resources.
-- **Agent Registry**: Centralized repository of versioned agent packages.
-- **Provider Auth**: Secure access for hosting platform integration.
+### B. MARS Runtime (Sandbox)
+- **Hardened Processes**: Standard OS processes wrapped in process groups (`setpgid`) for absolute termination control.
+- **Environment Scrubbing**: 100% sanitized environment variables.
+- **Network Kill-switch**: Default blocking of internal network ranges and scanning.
 
-### C. Agent Registry
-Agents are distributed as packages containing:
-- `agent.yaml`: Metadata, runtime requirements, resource limits, permissions.
-- Code/Binary: The executable logic (Rust, Python, WASM).
+### C. The Minimal Hub (Coordination)
+- **Node Registry**: Fleet-wide inventory of active nodes and keys.
+- **Health Polling**: Centralized visibility into cluster-wide capacity and load mapping.
 
-## 3. Phase 1 Implementation Plan
+## 3. The Provider-Node Contract
+Providers integrate MARS nodes directly into their existing architecture:
+1.  **Deployment**: `mars node start` runs as a system service.
+2.  **Authentication**: `X-Mars-Key` secured REST requests.
+3.  **Observability**: `/metrics` polling for real-time fleet density.
 
-### 3.1 Agent Package Specification (`agent.yaml`)
-Define the structure for agent packages, including:
-- Runtime configuration (entry point, environment).
-- Model requirements.
-- Resource limits (CPU, RAM).
-- Permissions (Network, FS access).
+## 4. Multi-Tenant Execution Model
+- **Isolated Workspace**: `.mars/tenants/{tenant_id}/{agent_name}/`
+- **Port Management**: Deterministic, hash-based port assignment to prevent collisions.
+- **Log Isolation**: Individual log streams per tenant/agent with automated rotation.
 
-### 3.2 Runtime Abstraction Layer
-Create a trait-based system in Rust to support multiple execution backends:
-- `ProcessRuntime`: Standard OS process with isolation.
-- `ContainerRuntime`: (Future) Docker/Podman integration.
-- `WasmRuntime`: (Future) High-density, high-security sandbox.
-
-### 3.3 Node Agent Service
-The core daemon that runs on the provider's infrastructure:
-- Listens for commands from the Control Plane (or local CLI for now).
-- Manages agent lifecycles.
-- Monitors health and resource usage.
-
-## 4. Multi-Tenant Design
-- **Namespace Isolation**: Each tenant has a dedicated directory and resource quota.
-- **No Cross-User Interaction**: Strict network and filesystem boundaries.
-
-## 5. Security Model
-- **Non-Root Execution**: Agents never run as root.
-- **Restricted FS**: Agents only see their own sandbox.
-- **Network Policies**: Fine-grained control over outbound connections.
+## 5. Security Posture
+- **FS Boundary**: Path-canonicalization to prevent workspace escapes.
+- **Zombie Protection**: Process group signaling (`killpg`) ensures no orphaned processes.
+- **Fleet Defense**: Rate-limiting and multiple secret key support for cluster integrity.

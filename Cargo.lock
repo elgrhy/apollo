@@ -736,18 +736,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5b646652bf6661599e1da8901b3b9522896f01e736bad5f723fe7a3a27f899d"
 
 [[package]]
-name = "libredox"
-version = "0.1.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1744e39d1d6a9948f4f388969627434e31128196de472883b39f148769bfe30a"
-dependencies = [
- "bitflags 2.11.0",
- "libc",
- "plain",
- "redox_syscall 0.7.3",
-]
-
-[[package]]
 name = "linux-raw-sys"
 version = "0.4.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -781,28 +769,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
 
 [[package]]
-name = "mars"
-version = "3.3.0"
-dependencies = [
- "anyhow",
- "mars-agents",
- "mars-bootstrap",
- "mars-core",
- "mars-detect",
- "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "mars-agents"
-version = "3.3.0"
-dependencies = [
- "mars-core",
- "serde",
-]
-
-[[package]]
-name = "mars-bootstrap"
+name = "mars-core"
 version = "3.3.0"
 dependencies = [
  "anyhow",
@@ -810,49 +777,15 @@ dependencies = [
  "dialoguer",
  "hex",
  "hmac",
- "mars-agents",
- "mars-core",
- "mars-detect",
- "serde",
- "serde_json",
- "sha2",
- "sysinfo",
- "tiny_http",
- "tokio",
- "which",
- "whoami",
-]
-
-[[package]]
-name = "mars-core"
-version = "3.3.0"
-dependencies = [
- "anyhow",
- "dialoguer",
- "hex",
- "hmac",
  "lazy_static",
  "reqwest",
  "serde",
  "serde_json",
+ "serde_yaml",
  "sha2",
- "tokio",
-]
-
-[[package]]
-name = "mars-detect"
-version = "3.3.0"
-dependencies = [
- "anyhow",
- "dialoguer",
- "mars-core",
- "reqwest",
- "serde",
- "serde_json",
  "sysinfo",
  "tokio",
  "which",
- "whoami",
 ]
 
 [[package]]
@@ -866,6 +799,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "sysinfo",
  "tiny_http",
  "tokio",
 ]
@@ -877,8 +811,10 @@ dependencies = [
  "anyhow",
  "async-trait",
  "mars-core",
+ "nix",
  "serde",
  "serde_json",
+ "sysinfo",
  "tokio",
 ]
 
@@ -903,6 +839,17 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "nix"
+version = "0.27.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2eb04e9c688eff1c89d72b407f168cf79bb9e867a9d3323ed6c01519eb9cc053"
+dependencies = [
+ "bitflags 2.11.0",
+ "cfg-if",
+ "libc",
 ]
 
 [[package]]
@@ -944,7 +891,7 @@ checksum = "2621685985a2ebf1c516881c026032ac7deafcda1a2c9b7850dc81e3dfcb64c1"
 dependencies = [
  "cfg-if",
  "libc",
- "redox_syscall 0.5.18",
+ "redox_syscall",
  "smallvec",
  "windows-link",
 ]
@@ -960,12 +907,6 @@ name = "pin-project-lite"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
-
-[[package]]
-name = "plain"
-version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4596b6d070b27117e987119b4dac604f3c58cfb0b191112e24771b2faeac1a6"
 
 [[package]]
 name = "potential_utf"
@@ -1035,15 +976,6 @@ name = "redox_syscall"
 version = "0.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed2bf2547551a7053d6fdfafda3f938979645c44812fbfcda098faae3f1a362d"
-dependencies = [
- "bitflags 2.11.0",
-]
-
-[[package]]
-name = "redox_syscall"
-version = "0.7.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ce70a74e890531977d37e532c34d45e9055d2409ed08ddba14529471ed0be16"
 dependencies = [
  "bitflags 2.11.0",
 ]
@@ -1646,12 +1578,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wasite"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8dad83b4f25e74f184f64c43b150b91efe7647395b42289f38e50566d82855b"
-
-[[package]]
 name = "wasm-bindgen"
 version = "0.2.114"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1770,17 +1696,6 @@ dependencies = [
  "home",
  "rustix 0.38.44",
  "winsafe",
-]
-
-[[package]]
-name = "whoami"
-version = "1.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d4a4db5077702ca3015d3d02d74974948aba2ad9e12ab7df718ee64ccd7e97d"
-dependencies = [
- "libredox",
- "wasite",
- "web-sys",
 ]
 
 [[package]]

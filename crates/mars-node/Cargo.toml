@@ -8,7 +8,8 @@ mars-core = { path = "../mars-core" }
 mars-runtime = { path = "../mars-runtime" }
 anyhow = { workspace = true }
 tokio = { workspace = true }
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
+sysinfo = "0.30"
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml = "0.9"

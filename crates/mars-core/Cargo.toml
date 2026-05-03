@@ -7,6 +7,7 @@ edition = "2021"
 anyhow     = { workspace = true }
 serde      = { workspace = true }
 serde_json = { workspace = true }
+serde_yaml = "0.9"
 tokio      = { workspace = true }
 reqwest    = { workspace = true }
 lazy_static = { workspace = true }
@@ -14,3 +15,6 @@ dialoguer  = { workspace = true }
 sha2       = { workspace = true }
 hmac       = { workspace = true }
 hex        = { workspace = true }
+sysinfo    = { workspace = true }
+which      = { workspace = true }
+async-trait = { workspace = true }
