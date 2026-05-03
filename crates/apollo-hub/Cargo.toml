@@ -11,5 +11,9 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 clap = { version = "4", features = ["derive"] }
 reqwest = { version = "0.11", features = ["json"] }
-tiny_http = "0.12"
-async-trait = "0.1"
+tiny_http    = "0.12"
+async-trait  = "0.1"
+axum         = { workspace = true }
+axum-server  = { workspace = true }
+tower        = { workspace = true }
+tower-http   = { workspace = true }

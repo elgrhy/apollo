@@ -12,7 +12,12 @@ pub struct NodeConfig {
     pub secret_keys: Vec<String>,
     pub profile:     NodeProfile,
     pub network:     NodeNetworkPolicy,
+    #[serde(default = "default_region")]
+    pub region:      String,
+    pub jwt_secret:  Option<String>,
 }
+
+fn default_region() -> String { "default".to_string() }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct NodeNetworkPolicy {
@@ -118,6 +123,19 @@ pub struct AgentSpec {
     pub permissions:    AgentPermissionConfig,
     pub compatibility:  AgentCompatibility,
     pub restart_policy: Option<RestartPolicy>,
+    #[serde(default)]
+    pub volumes:        Vec<VolumeSpec>,
+}
+
+/// A named persistent volume mounted into the tenant workspace.
+/// Apollo creates `base_dir/volumes/{tenant_id}/{agent}/{name}/` and exposes
+/// it as `APOLLO_VOLUME_{NAME_UPPER}=<abs_path>` in the agent's environment.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct VolumeSpec {
+    pub name: String,
+    /// Advisory size hint (e.g. "1gb"). Quota enforcement is provider-side.
+    #[serde(default)]
+    pub size: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

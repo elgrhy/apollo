@@ -17,5 +17,10 @@ sysinfo = "0.30"
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml = "0.9"
-tiny_http = { workspace = true }
-dialoguer = { workspace = true }
+tiny_http    = { workspace = true }
+dialoguer    = { workspace = true }
+axum         = { workspace = true }
+axum-server  = { workspace = true }
+tower        = { workspace = true }
+tower-http   = { workspace = true }
+jsonwebtoken = { workspace = true }

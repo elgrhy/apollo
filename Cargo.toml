@@ -28,3 +28,8 @@ tar         = "0.4"
 zip         = "0.6"
 tempfile    = "3.10"
 semver      = "1.0"
+axum        = { version = "0.7", features = ["macros"] }
+axum-server = { version = "0.7", features = ["tls-rustls"] }
+tower       = { version = "0.4", features = ["full"] }
+tower-http  = { version = "0.5", features = ["cors"] }
+jsonwebtoken = "9"

@@ -5,23 +5,38 @@ use apollo_runtime::process::{
     count_active_instances, load_all_instances,
 };
 use apollo_runtime::AgentRuntime;
-use std::sync::{Arc, Mutex};
-use std::path::{Path, PathBuf};
-use apollo_core::types::{AgentSpec, NodeConfig, AgentInstance, NodeNetworkPolicy};
-use apollo_core::{
-    register_agent_package, rollback_agent, remove_agent,
-    detect_node_capabilities, load_agent_registry,
+use axum::{
+    body::Body,
+    extract::{Path as AxumPath, State},
+    http::{HeaderMap, Request, StatusCode},
+    middleware::{self, Next},
+    response::{IntoResponse, Response},
+    routing::{delete, get, post, put},
+    Json, Router,
 };
-use sysinfo::{System, Pid};
-use tokio::signal;
+use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::time::{Instant, Duration, SystemTime, UNIX_EPOCH};
-use serde::Deserialize;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use sysinfo::{Pid, System};
+use tokio::signal;
+use std::path::Path;
+
+use apollo_core::types::{AgentSpec, AgentInstance, NodeConfig, NodeNetworkPolicy};
+use apollo_core::{
+    detect_node_capabilities, load_agent_registry,
+    register_agent_package, rollback_agent, remove_agent,
+};
+use apollo_core::secrets::{upsert_secrets, delete_secrets};
+use apollo_core::usage::{load_usage, reset_usage, record_start, record_stop, list_usage_tenants};
+use apollo_core::webhook::{WebhookConfig, WebhookPayload, fire as fire_webhook};
 
 // ── CLI ───────────────────────────────────────────────────────────────────────
 
 #[derive(Parser)]
-#[command(name = "apollo", about = "APOLLO — AI Agent Execution Engine v1.1")]
+#[command(name = "apollo", about = "APOLLO — AI Agent Execution Engine v1.2")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -56,6 +71,24 @@ enum NodeAction {
         max_agents: usize,
         #[arg(long, env = "APOLLO_SECRET_KEYS")]
         secret_keys: Option<String>,
+        /// TLS certificate PEM path (enables HTTPS)
+        #[arg(long)]
+        tls_cert: Option<PathBuf>,
+        /// TLS private key PEM path
+        #[arg(long)]
+        tls_key: Option<PathBuf>,
+        /// JWT HMAC secret for Bearer token authentication
+        #[arg(long, env = "APOLLO_JWT_SECRET")]
+        jwt_secret: Option<String>,
+        /// Webhook URL for lifecycle events (AGENT_START, AGENT_STOP, etc.)
+        #[arg(long, env = "APOLLO_WEBHOOK_URL")]
+        webhook_url: Option<String>,
+        /// HMAC secret for signing webhook payloads
+        #[arg(long, env = "APOLLO_WEBHOOK_SECRET")]
+        webhook_secret: Option<String>,
+        /// Node region (e.g. us-east-1) reported to hub
+        #[arg(long, default_value = "default")]
+        region: String,
     },
     Status,
 }
@@ -76,16 +109,33 @@ enum AgentAction {
     Remove { name: String },
 }
 
-// ── REST request/response types ────────────────────────────────────────────────
+// ── Shared application state ──────────────────────────────────────────────────
 
-#[derive(Deserialize)]
-struct RunRequest   { agent: String, tenant: String }
-#[derive(Deserialize)]
-struct StopRequest  { agent: String, tenant: String }
-#[derive(Deserialize)]
-struct AddRequest   { source: String }
-#[derive(Deserialize)]
-struct RollbackReq  { agent: String }
+#[derive(Clone)]
+struct AppState {
+    runtime:     Arc<ProcessRuntime>,
+    config:      NodeConfig,
+    rate_limiter: Arc<RateLimiter>,
+    max_agents:  usize,
+    base_dir:    PathBuf,
+    webhook:     Option<WebhookConfig>,
+}
+
+// ── Request/response types ────────────────────────────────────────────────────
+
+#[derive(Deserialize)] struct RunRequest  { agent: String, tenant: String }
+#[derive(Deserialize)] struct StopRequest { agent: String, tenant: String }
+#[derive(Deserialize)] struct AddRequest  { source: String }
+#[derive(Deserialize)] struct RollbackReq { agent: String }
+#[derive(Deserialize)] struct SecretsBody { secrets: HashMap<String, String> }
+
+#[derive(Serialize, Deserialize)]
+struct JwtClaims {
+    sub: String,
+    exp: u64,
+    #[serde(default)]
+    keys: Vec<String>,
+}
 
 // ── Rate limiter ───────────────────────────────────────────────────────────────
 
@@ -108,6 +158,56 @@ impl RateLimiter {
         b.insert(key.to_string(), now);
         true
     }
+}
+
+// ── Auth middleware ───────────────────────────────────────────────────────────
+
+async fn auth_middleware(
+    State(state): State<AppState>,
+    req: Request<Body>,
+    next: Next,
+) -> Response {
+    let headers = req.headers();
+
+    // Extract the credential from X-Apollo-Key or Authorization: Bearer <jwt>
+    let maybe_key = extract_key(headers, &state.config.secret_keys, state.config.jwt_secret.as_deref());
+
+    match maybe_key {
+        None => (StatusCode::UNAUTHORIZED, "Unauthorized").into_response(),
+        Some(key) => {
+            if !state.rate_limiter.check(&key) {
+                return (StatusCode::TOO_MANY_REQUESTS, "Too Many Requests").into_response();
+            }
+            next.run(req).await
+        }
+    }
+}
+
+fn extract_key(headers: &HeaderMap, valid_keys: &[String], jwt_secret: Option<&str>) -> Option<String> {
+    // 1. X-Apollo-Key header
+    if let Some(val) = headers.get("x-apollo-key").and_then(|v| v.to_str().ok()) {
+        if valid_keys.contains(&val.to_string()) {
+            return Some(val.to_string());
+        }
+    }
+    // 2. Authorization: Bearer <jwt>
+    if let (Some(secret), Some(bearer)) = (
+        jwt_secret,
+        headers.get("authorization").and_then(|v| v.to_str().ok())
+            .and_then(|v| v.strip_prefix("Bearer "))
+    ) {
+        let key = DecodingKey::from_secret(secret.as_bytes());
+        let mut validation = Validation::new(Algorithm::HS256);
+        validation.validate_exp = true;
+        if let Ok(data) = decode::<JwtClaims>(bearer, &key, &validation) {
+            let claims = data.claims;
+            // JWT can carry allowed keys or just be a valid signed token
+            if claims.keys.is_empty() || claims.keys.iter().any(|k| valid_keys.contains(k)) {
+                return Some(format!("jwt:{}", claims.sub));
+            }
+        }
+    }
+    None
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
@@ -151,7 +251,10 @@ async fn handle_command(command: Commands) -> Result<()> {
 
 async fn handle_node(action: NodeAction) -> Result<()> {
     match action {
-        NodeAction::Start { listen, base_dir, max_agents, secret_keys } => {
+        NodeAction::Start {
+            listen, base_dir, max_agents, secret_keys,
+            tls_cert, tls_key, jwt_secret, webhook_url, webhook_secret, region,
+        } => {
             let profile = detect_node_capabilities().await?;
             let keys: Vec<String> = secret_keys
                 .unwrap_or_else(|| "apollo-dev-secret".to_string())
@@ -164,14 +267,39 @@ async fn handle_node(action: NodeAction) -> Result<()> {
                 provider_id: "standalone".to_string(),
                 secret_keys: keys,
                 profile,
-                network: NodeNetworkPolicy { allow_localhost: false, allow_private_ranges: false, rate_limit_rps: 100 },
+                network: NodeNetworkPolicy {
+                    allow_localhost: false,
+                    allow_private_ranges: false,
+                    rate_limit_rps: 100,
+                },
+                region,
+                jwt_secret,
             };
-            println!("APOLLO Node '{}' active.", config.node_id);
+
+            println!("APOLLO Node '{}' active. Region: {}", config.node_id, config.region);
 
             let runtime      = Arc::new(ProcessRuntime::new(base_dir.clone()));
             let rate_limiter = Arc::new(RateLimiter::new(config.network.rate_limit_rps));
 
+            let webhook = webhook_url.map(|url| WebhookConfig::new(url, webhook_secret));
+
             startup_recovery(&runtime, &base_dir).await;
+
+            // Metering background task — samples every 60 s
+            let meter_base  = base_dir.clone();
+            let meter_node  = config.node_id.clone();
+            tokio::spawn(async move {
+                run_metering_loop(meter_base, meter_node).await;
+            });
+
+            let state = AppState {
+                runtime:     runtime.clone(),
+                config:      config.clone(),
+                rate_limiter,
+                max_agents,
+                base_dir:    base_dir.clone(),
+                webhook,
+            };
 
             let rt_shutdown = Arc::clone(&runtime);
             tokio::spawn(async move {
@@ -180,7 +308,7 @@ async fn handle_node(action: NodeAction) -> Result<()> {
                 std::process::exit(0);
             });
 
-            run_api_server(&listen, runtime, config, rate_limiter, max_agents, base_dir).await
+            run_api_server(&listen, state, tls_cert, tls_key).await
         }
         NodeAction::Status => {
             println!("APOLLO Node: Active [CERTIFIED]");
@@ -203,10 +331,10 @@ async fn handle_agent(base_dir: &Path, action: AgentAction) -> Result<()> {
             println!("✓ Running: {} (tenant={})  PID={:?}  port={:?}", name, tenant, instance.pid, instance.port);
         }
         AgentAction::Stop { name, tenant } => {
-            let runtime   = ProcessRuntime::new(base_dir.to_path_buf());
-            let mut list  = load_tenant_instances(base_dir, &tenant)?;
+            let mut list = load_tenant_instances(base_dir, &tenant)?;
             if let Some(pos) = list.iter().position(|i| i.agent_id == name && i.tenant_id == tenant) {
                 if let Some(pid) = list[pos].pid {
+                    let runtime = ProcessRuntime::new(base_dir.to_path_buf());
                     runtime.stop(pid).await?;
                     list[pos].status = "stopped".to_string();
                     list[pos].pid    = None;
@@ -218,7 +346,7 @@ async fn handle_agent(base_dir: &Path, action: AgentAction) -> Result<()> {
             }
         }
         AgentAction::List => {
-            let records = load_agent_registry(base_dir)?;
+            let records = load_agent_registry(base_dir).unwrap_or_default();
             if records.is_empty() {
                 println!("No agents registered.");
             } else {
@@ -231,6 +359,7 @@ async fn handle_agent(base_dir: &Path, action: AgentAction) -> Result<()> {
         }
         AgentAction::Rollback { name } => {
             rollback_agent(base_dir, &name)?;
+            println!("✓ Rolled back: {}", name);
         }
         AgentAction::Remove { name } => {
             remove_agent(base_dir, &name)?;
@@ -262,145 +391,238 @@ async fn run_interactive_shell() -> Result<()> {
     Ok(())
 }
 
-// ── REST API server ────────────────────────────────────────────────────────────
+// ── REST API server (axum) ────────────────────────────────────────────────────
 
 async fn run_api_server(
     listen: &str,
-    runtime: Arc<ProcessRuntime>,
-    config:  NodeConfig,
-    rl:      Arc<RateLimiter>,
-    max_agents: usize,
-    base_dir: PathBuf,
+    state: AppState,
+    tls_cert: Option<PathBuf>,
+    tls_key:  Option<PathBuf>,
 ) -> Result<()> {
-    let server = tiny_http::Server::http(listen).map_err(|e| anyhow!("{}", e))?;
-    println!("API listening on http://{}", listen);
+    let app = Router::new()
+        // Node
+        .route("/metrics",  get(handle_metrics))
+        .route("/health",   get(handle_health))
+        // Agents
+        .route("/agents/list",     get(handle_agents_list))
+        .route("/agents/add",      post(handle_agents_add))
+        .route("/agents/run",      post(handle_agents_run))
+        .route("/agents/stop",     delete(handle_agents_stop))
+        .route("/agents/rollback", post(handle_agents_rollback))
+        .route("/agents/remove",   post(handle_agents_remove))
+        // Tenant secrets
+        .route("/tenants/:tenant_id/secrets", put(handle_secrets_put))
+        .route("/tenants/:tenant_id/secrets", delete(handle_secrets_delete))
+        // Usage metering
+        .route("/usage",                       get(handle_usage_all))
+        .route("/usage/:tenant_id",            get(handle_usage_tenant))
+        .route("/usage/:tenant_id/reset",      post(handle_usage_reset))
+        .layer(middleware::from_fn_with_state(state.clone(), auth_middleware))
+        .with_state(state);
 
-    for mut req in server.incoming_requests() {
-        // Auth
-        let key_opt = req.headers().iter()
-            .find(|h| h.field.as_str().to_ascii_lowercase() == "x-apollo-key")
-            .map(|h| h.value.as_str().to_string());
-        let corr_id = req.headers().iter()
-            .find(|h| h.field.as_str().to_ascii_lowercase() == "x-apollo-correlation-id")
-            .map(|h| h.value.as_str().to_string());
+    let addr: std::net::SocketAddr = listen.parse()
+        .map_err(|e| anyhow!("Invalid listen address '{}': {}", listen, e))?;
 
-        let authed = key_opt.as_deref().map(|k| config.secret_keys.contains(&k.to_string())).unwrap_or(false);
-        if !authed {
-            let _ = req.respond(tiny_http::Response::from_string("Unauthorized").with_status_code(401));
-            continue;
+    match (tls_cert, tls_key) {
+        (Some(cert), Some(key)) => {
+            println!("API listening on https://{} (TLS)", addr);
+            let tls_config = axum_server::tls_rustls::RustlsConfig::from_pem_file(cert, key)
+                .await
+                .map_err(|e| anyhow!("TLS config error: {}", e))?;
+            axum_server::bind_rustls(addr, tls_config)
+                .serve(app.into_make_service())
+                .await
+                .map_err(|e| anyhow!("Server error: {}", e))
         }
-        if !rl.check(key_opt.as_deref().unwrap_or("")) {
-            let _ = req.respond(tiny_http::Response::from_string("Too Many Requests").with_status_code(429));
-            continue;
+        _ => {
+            println!("API listening on http://{}", addr);
+            axum_server::bind(addr)
+                .serve(app.into_make_service())
+                .await
+                .map_err(|e| anyhow!("Server error: {}", e))
         }
-
-        let method = req.method().clone();
-        let url    = req.url().to_string();
-
-        // Build response body and status, then send once at end of match
-        let (status, body) = match (method, url.as_str()) {
-
-            (tiny_http::Method::Get, "/metrics") => {
-                let active = count_active_instances(&base_dir);
-                (200u16, format!(r#"{{"active_agents":{},"max_agents":{},"node_id":"{}"}}"#,
-                    active, max_agents, config.node_id))
-            }
-
-            (tiny_http::Method::Get, "/agents/list") => {
-                let records = load_agent_registry(&base_dir).unwrap_or_default();
-                (200, serde_json::to_string(&records).unwrap_or_else(|_| "[]".into()))
-            }
-
-            (tiny_http::Method::Post, "/agents/add") => {
-                let mut body = String::new();
-                req.as_reader().read_to_string(&mut body)?;
-                match serde_json::from_str::<AddRequest>(&body) {
-                    Ok(r) => match register_agent_package(&base_dir, &r.source).await {
-                        Ok(rec) => (200, serde_json::to_string(&rec).unwrap_or_default()),
-                        Err(e)  => (400, err_json(&e.to_string())),
-                    },
-                    Err(e) => (400, err_json(&format!("Bad JSON: {}", e))),
-                }
-            }
-
-            (tiny_http::Method::Post, "/agents/run") => {
-                let mut body = String::new();
-                req.as_reader().read_to_string(&mut body)?;
-                match serde_json::from_str::<RunRequest>(&body) {
-                    Err(e) => (400, err_json(&format!("Bad JSON: {}", e))),
-                    Ok(r) => {
-                        if count_active_instances(&base_dir) >= max_agents {
-                            (503, err_json("Node at capacity"))
-                        } else {
-                            match get_agent_spec(&base_dir, &r.agent) {
-                                Err(e) => (404, err_json(&e.to_string())),
-                                Ok(spec) => match runtime.start(&r.tenant, &spec).await {
-                                    Err(e) => (500, err_json(&e.to_string())),
-                                    Ok(inst) => {
-                                        save_instance(&base_dir, &inst)?;
-                                        log_event(&config.node_id, "LIFECYCLE", "AGENT_START",
-                                            &format!("Agent '{}' started for tenant '{}'", r.agent, r.tenant),
-                                            corr_id.clone());
-                                        (200, serde_json::to_string(&inst).unwrap_or_default())
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            (tiny_http::Method::Delete, "/agents/stop") => {
-                let mut body = String::new();
-                req.as_reader().read_to_string(&mut body)?;
-                match serde_json::from_str::<StopRequest>(&body) {
-                    Err(e) => (400, err_json(&format!("Bad JSON: {}", e))),
-                    Ok(r) => {
-                        let mut list = load_tenant_instances(&base_dir, &r.tenant).unwrap_or_default();
-                        match list.iter().position(|i| i.agent_id == r.agent && i.tenant_id == r.tenant) {
-                            None => (404, err_json("No running instance found")),
-                            Some(pos) => {
-                                if let Some(pid) = list[pos].pid {
-                                    runtime.stop(pid).await?;
-                                    list[pos].status = "stopped".to_string();
-                                    list[pos].pid    = None;
-                                    save_tenant_instances(&base_dir, &r.tenant, &list)?;
-                                    log_event(&config.node_id, "LIFECYCLE", "AGENT_STOP",
-                                        &format!("Agent '{}' stopped for tenant '{}'", r.agent, r.tenant),
-                                        corr_id.clone());
-                                }
-                                (200, r#"{"status":"stopped"}"#.to_string())
-                            }
-                        }
-                    }
-                }
-            }
-
-            (tiny_http::Method::Post, "/agents/rollback") => {
-                let mut body = String::new();
-                req.as_reader().read_to_string(&mut body)?;
-                match serde_json::from_str::<RollbackReq>(&body) {
-                    Ok(r) => match rollback_agent(&base_dir, &r.agent) {
-                        Ok(())  => (200, r#"{"status":"rolled_back"}"#.to_string()),
-                        Err(e)  => (400, err_json(&e.to_string())),
-                    },
-                    Err(e) => (400, err_json(&format!("Bad JSON: {}", e))),
-                }
-            }
-
-            (tiny_http::Method::Get, "/health") => {
-                (200, r#"{"status":"ok"}"#.to_string())
-            }
-
-            _ => (404, r#"{"error":"not found"}"#.to_string()),
-        };
-
-        let resp = tiny_http::Response::from_string(body)
-            .with_status_code(status)
-            .with_header(tiny_http::Header::from_bytes(b"Content-Type", b"application/json").unwrap());
-        let _ = req.respond(resp);
     }
-    Ok(())
+}
+
+// ── Route handlers ────────────────────────────────────────────────────────────
+
+async fn handle_health() -> impl IntoResponse {
+    Json(serde_json::json!({"status": "ok"}))
+}
+
+async fn handle_metrics(State(s): State<AppState>) -> impl IntoResponse {
+    let active = count_active_instances(&s.base_dir);
+    Json(serde_json::json!({
+        "active_agents": active,
+        "max_agents":    s.max_agents,
+        "node_id":       s.config.node_id,
+        "region":        s.config.region,
+    }))
+}
+
+async fn handle_agents_list(State(s): State<AppState>) -> impl IntoResponse {
+    let records = load_agent_registry(&s.base_dir).unwrap_or_default();
+    Json(records)
+}
+
+async fn handle_agents_add(
+    State(s): State<AppState>,
+    Json(body): Json<AddRequest>,
+) -> impl IntoResponse {
+    match register_agent_package(&s.base_dir, &body.source).await {
+        Ok(rec) => (StatusCode::OK, Json(serde_json::to_value(rec).unwrap_or_default())).into_response(),
+        Err(e)  => (StatusCode::BAD_REQUEST, err_json(&e.to_string())).into_response(),
+    }
+}
+
+async fn handle_agents_run(
+    State(s): State<AppState>,
+    headers: HeaderMap,
+    Json(body): Json<RunRequest>,
+) -> impl IntoResponse {
+    if count_active_instances(&s.base_dir) >= s.max_agents {
+        return (StatusCode::SERVICE_UNAVAILABLE, err_json("Node at capacity")).into_response();
+    }
+    let spec = match get_agent_spec(&s.base_dir, &body.agent) {
+        Ok(sp) => sp,
+        Err(e) => return (StatusCode::NOT_FOUND, err_json(&e.to_string())).into_response(),
+    };
+    match s.runtime.start(&body.tenant, &spec).await {
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, err_json(&e.to_string())).into_response(),
+        Ok(inst) => {
+            let _ = save_instance(&s.base_dir, &inst);
+            let _ = record_start(&s.base_dir, &body.tenant);
+            log_event(&s.config.node_id, "LIFECYCLE", "AGENT_START",
+                &format!("Agent '{}' started for tenant '{}'", body.agent, body.tenant),
+                corr_id(&headers));
+            if let Some(ref wh) = s.webhook {
+                fire_webhook(wh, WebhookPayload::agent_start(
+                    &s.config.node_id, &body.tenant, &body.agent,
+                    inst.port.unwrap_or(0), inst.pid.unwrap_or(0),
+                ));
+            }
+            (StatusCode::OK, Json(serde_json::to_value(&inst).unwrap_or_default())).into_response()
+        }
+    }
+}
+
+async fn handle_agents_stop(
+    State(s): State<AppState>,
+    headers: HeaderMap,
+    Json(body): Json<StopRequest>,
+) -> impl IntoResponse {
+    let mut list = load_tenant_instances(&s.base_dir, &body.tenant).unwrap_or_default();
+    match list.iter().position(|i| i.agent_id == body.agent && i.tenant_id == body.tenant) {
+        None => (StatusCode::NOT_FOUND, err_json("No running instance found")).into_response(),
+        Some(pos) => {
+            if let Some(pid) = list[pos].pid {
+                let _ = s.runtime.stop(pid).await;
+                list[pos].status = "stopped".to_string();
+                list[pos].pid    = None;
+                let _ = save_tenant_instances(&s.base_dir, &body.tenant, &list);
+                let _ = record_stop(&s.base_dir, &body.tenant);
+                log_event(&s.config.node_id, "LIFECYCLE", "AGENT_STOP",
+                    &format!("Agent '{}' stopped for tenant '{}'", body.agent, body.tenant),
+                    corr_id(&headers));
+                if let Some(ref wh) = s.webhook {
+                    fire_webhook(wh, WebhookPayload::agent_stop(
+                        &s.config.node_id, &body.tenant, &body.agent,
+                    ));
+                }
+            }
+            (StatusCode::OK, Json(serde_json::json!({"status": "stopped"}))).into_response()
+        }
+    }
+}
+
+async fn handle_agents_rollback(
+    State(s): State<AppState>,
+    Json(body): Json<RollbackReq>,
+) -> impl IntoResponse {
+    match rollback_agent(&s.base_dir, &body.agent) {
+        Ok(())  => (StatusCode::OK, Json(serde_json::json!({"status": "rolled_back"}))).into_response(),
+        Err(e)  => (StatusCode::BAD_REQUEST, err_json(&e.to_string())).into_response(),
+    }
+}
+
+async fn handle_agents_remove(
+    State(s): State<AppState>,
+    Json(body): Json<RollbackReq>,
+) -> impl IntoResponse {
+    match remove_agent(&s.base_dir, &body.agent) {
+        Ok(())  => (StatusCode::OK, Json(serde_json::json!({"status": "removed"}))).into_response(),
+        Err(e)  => (StatusCode::BAD_REQUEST, err_json(&e.to_string())).into_response(),
+    }
+}
+
+async fn handle_secrets_put(
+    State(s): State<AppState>,
+    AxumPath(tenant_id): AxumPath<String>,
+    Json(body): Json<SecretsBody>,
+) -> impl IntoResponse {
+    match upsert_secrets(&s.base_dir, &tenant_id, body.secrets) {
+        Ok(()) => (StatusCode::OK, Json(serde_json::json!({"status": "saved"}))).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, err_json(&e.to_string())).into_response(),
+    }
+}
+
+async fn handle_secrets_delete(
+    State(s): State<AppState>,
+    AxumPath(tenant_id): AxumPath<String>,
+) -> impl IntoResponse {
+    match delete_secrets(&s.base_dir, &tenant_id) {
+        Ok(()) => (StatusCode::OK, Json(serde_json::json!({"status": "deleted"}))).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, err_json(&e.to_string())).into_response(),
+    }
+}
+
+async fn handle_usage_all(State(s): State<AppState>) -> impl IntoResponse {
+    let tenants = list_usage_tenants(&s.base_dir);
+    let usage: Vec<_> = tenants.iter().map(|t| load_usage(&s.base_dir, t)).collect();
+    Json(usage)
+}
+
+async fn handle_usage_tenant(
+    State(s): State<AppState>,
+    AxumPath(tenant_id): AxumPath<String>,
+) -> impl IntoResponse {
+    Json(load_usage(&s.base_dir, &tenant_id))
+}
+
+async fn handle_usage_reset(
+    State(s): State<AppState>,
+    AxumPath(tenant_id): AxumPath<String>,
+) -> impl IntoResponse {
+    match reset_usage(&s.base_dir, &tenant_id) {
+        Ok(u)  => (StatusCode::OK, Json(serde_json::to_value(u).unwrap_or_default())).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, err_json(&e.to_string())).into_response(),
+    }
+}
+
+// ── Background metering loop ──────────────────────────────────────────────────
+
+async fn run_metering_loop(base_dir: PathBuf, _node_id: String) {
+    let interval = Duration::from_secs(60);
+    loop {
+        tokio::time::sleep(interval).await;
+        let all = load_all_instances(&base_dir);
+        let mut sys = System::new_all();
+        sys.refresh_processes();
+        for inst in &all {
+            if inst.status != "running" { continue; }
+            if let Some(pid) = inst.pid {
+                if let Some(proc) = sys.process(Pid::from(pid as usize)) {
+                    let _ = apollo_core::usage::record_sample(
+                        &base_dir,
+                        &inst.tenant_id,
+                        proc.cpu_usage(),
+                        proc.memory() / 1024 / 1024,
+                        60.0,
+                    );
+                }
+            }
+        }
+    }
 }
 
 // ── Startup recovery ──────────────────────────────────────────────────────────
@@ -425,7 +647,6 @@ async fn startup_recovery(runtime: &ProcessRuntime, base_dir: &Path) {
         }
     }
 
-    // Re-save by tenant
     let mut by_tenant: HashMap<String, Vec<AgentInstance>> = HashMap::new();
     for inst in all {
         by_tenant.entry(inst.tenant_id.clone()).or_default().push(inst);
@@ -445,8 +666,14 @@ fn get_agent_spec(base_dir: &Path, name: &str) -> Result<AgentSpec> {
         .ok_or_else(|| anyhow!("Agent '{}' not registered. Use 'agent add' first.", name))
 }
 
-fn err_json(msg: &str) -> String {
-    format!(r#"{{"error":"{}"}}"#, msg.replace('"', "'"))
+fn err_json(msg: &str) -> Json<serde_json::Value> {
+    Json(serde_json::json!({"error": msg}))
+}
+
+fn corr_id(headers: &HeaderMap) -> Option<String> {
+    headers.get("x-apollo-correlation-id")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string())
 }
 
 fn log_event(node_id: &str, category: &str, action: &str, msg: &str, corr: Option<String>) {

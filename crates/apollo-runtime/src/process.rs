@@ -6,6 +6,7 @@
 use crate::AgentRuntime;
 use apollo_core::types::{AgentSpec, AgentInstance, ExecutionStats};
 use apollo_core::runtime_registry::{resolve_launch, ensure_runtime, instances_path};
+use apollo_core::secrets::load_secrets;
 use async_trait::async_trait;
 use anyhow::{Result, anyhow};
 use std::process::Stdio;
@@ -331,12 +332,36 @@ impl AgentRuntime for ProcessRuntime {
             }
         }
 
+        // Agent-level env overrides from agent.yaml
         if let Some(env) = &spec.runtime.env {
             for (k, v) in env {
                 if !k.starts_with("APOLLO_") && k != "PATH" {
                     cmd.env(k, v);
                 }
             }
+        }
+
+        // Per-tenant secrets (stored in base_dir/secrets/{tenant}.json)
+        let tenant_secrets = load_secrets(&self.base_dir, tenant_id);
+        for (k, v) in &tenant_secrets.secrets {
+            if !k.starts_with("APOLLO_") && k != "PATH" {
+                cmd.env(k, v);
+            }
+        }
+
+        // Persistent volume mounts — create dirs and expose as APOLLO_VOLUME_{NAME}
+        for vol in &spec.volumes {
+            let vol_path = self.base_dir
+                .join("volumes")
+                .join(tenant_id)
+                .join(&spec.name)
+                .join(&vol.name);
+            let _ = fs::create_dir_all(&vol_path);
+            let env_key = format!(
+                "APOLLO_VOLUME_{}",
+                vol.name.to_uppercase().replace('-', "_")
+            );
+            cmd.env(&env_key, vol_path.to_string_lossy().to_string());
         }
 
         let child  = cmd.spawn()?;

@@ -5,6 +5,9 @@ pub mod agents;
 pub mod detect;
 pub mod fetch;
 pub mod runtime_registry;
+pub mod secrets;
+pub mod webhook;
+pub mod usage;
 
 pub use types::*;
 pub use detect::{detect_node_capabilities, detect_node_capabilities_with_dir};
