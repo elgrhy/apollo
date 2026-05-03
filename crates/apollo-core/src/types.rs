@@ -1,4 +1,4 @@
-//! Shared data types used across the entire MARS workspace.
+//! Shared data types used across the entire APOLLO workspace.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -163,18 +163,19 @@ pub struct AgentCompatibility {
 // ── Event Spine ──────────────────────────────────────────────────────────────
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct MarsEvent {
-    pub timestamp: u64,
-    pub node_id:   String,
-    pub level:     String, // INFO, WARN, ERROR, FATAL
-    pub category:  String, // LIFECYCLE, RESOURCE, SECURITY, HEALTH
-    pub action:    String, // AGENT_START, AGENT_STOP, NODE_RECOVER, etc.
-    pub message:   String,
-    pub metadata:  Option<HashMap<String, String>>,
+pub struct ApolloEvent {
+    pub timestamp:      u64,
+    pub node_id:        String,
+    pub level:          String, // INFO, WARN, ERROR, FATAL
+    pub category:       String, // LIFECYCLE, RESOURCE, SECURITY, HEALTH
+    pub action:         String, // AGENT_START, AGENT_STOP, NODE_RECOVER, etc.
+    pub message:        String,
+    pub correlation_id: Option<String>,
+    pub metadata:       Option<HashMap<String, String>>,
 }
 
-pub fn log_event(event: MarsEvent) {
-    let log_path = std::path::PathBuf::from(".mars/events.jsonl");
+pub fn log_event(event: ApolloEvent) {
+    let log_path = std::path::PathBuf::from(".apollo/events.jsonl");
     if let Some(parent) = log_path.parent() { let _ = std::fs::create_dir_all(parent); }
     if let Ok(json) = serde_json::to_string(&event) {
         use std::io::Write;

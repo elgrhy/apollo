@@ -4,13 +4,13 @@
     "agent_id": "openclaw",
     "tenant_id": "cert-user",
     "status": "running",
-    "pid": 32347,
+    "pid": 32582,
     "port": 22416,
     "stats": {
       "cpu_usage_pct": 0.0,
       "memory_mb": 0,
       "uptime_secs": 0,
-      "restart_count": 1,
+      "restart_count": 2,
       "last_restart": 1777796732,
       "is_failed": false
     },

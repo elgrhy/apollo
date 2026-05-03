@@ -8,7 +8,7 @@ use tokio::time::{sleep, Duration};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
-#[command(name = "mars-hub")]
+#[command(name = "apollo-hub")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -21,10 +21,10 @@ enum Commands {
         #[arg(short, long, default_value = "0.0.0.0:9090")]
         listen: String,
         
-        #[arg(short, long, default_value = ".mars/hub_nodes.json")]
+        #[arg(short, long, default_value = ".apollo/hub_nodes.json")]
         storage: PathBuf,
     },
-    /// Register a new MARS Node
+    /// Register a new APOLLO Node
     Add {
         #[arg(long)]
         ip: String,
@@ -103,7 +103,7 @@ async fn main() -> Result<()> {
                         tokio::spawn(async move {
                             let url = format!("http://{}/metrics", node.ip);
                             let res = client_clone.get(&url)
-                                .header("X-Mars-Key", &node.key)
+                                .header("X-Apollo-Key", &node.key)
                                 .send()
                                 .await;
 
@@ -138,13 +138,13 @@ async fn main() -> Result<()> {
         }
         Commands::Add { ip, key, name } => {
             println!("✓ Registering node: {}", ip);
-            let path = PathBuf::from(".mars/hub_nodes.json");
+            let path = PathBuf::from(".apollo/hub_nodes.json");
             let mut nodes = load_nodes(&path).unwrap_or_default();
             nodes.push(NodeRecord { name, ip, key, status: Default::default() });
             save_nodes(&path, &nodes)?;
         }
         Commands::List => {
-            let path = PathBuf::from(".mars/hub_nodes.json");
+            let path = PathBuf::from(".apollo/hub_nodes.json");
             let nodes = load_nodes(&path).unwrap_or_default();
             for n in nodes {
                 let status = if n.status.is_online { "ONLINE" } else if n.status.failure_count > 0 { "FAILED" } else { "UNKNOWN" };
@@ -158,7 +158,7 @@ async fn main() -> Result<()> {
 
 async fn run_api_server(listen: &str, state: Arc<HubState>) -> Result<()> {
     let server = tiny_http::Server::http(listen).map_err(|e| anyhow!(e))?;
-    println!("MARS Hub listening on http://{}", listen);
+    println!("APOLLO Hub listening on http://{}", listen);
     for request in server.incoming_requests() {
         if request.url() == "/status" {
             let nodes = state.nodes.lock().unwrap();

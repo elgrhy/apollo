@@ -1,10 +1,10 @@
 [package]
-name = "mars-runtime"
+name = "apollo-runtime"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-mars-core = { path = "../mars-core" }
+apollo-core = { path = "../apollo-core" }
 anyhow = { workspace = true }
 tokio = { workspace = true }
 async-trait = { workspace = true }

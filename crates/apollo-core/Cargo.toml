@@ -1,5 +1,5 @@
 [package]
-name    = "mars-core"
+name    = "apollo-core"
 version = "3.3.0"
 edition = "2021"
 

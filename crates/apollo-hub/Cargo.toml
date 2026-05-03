@@ -1,10 +1,10 @@
 [package]
-name = "mars-hub"
+name = "apollo-hub"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-mars-core = { path = "../mars-core" }
+apollo-core = { path = "../apollo-core" }
 anyhow = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 serde = { workspace = true }

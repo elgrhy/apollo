@@ -1,5 +1,5 @@
 use crate::AgentRuntime;
-use mars_core::types::{AgentSpec, AgentInstance, ExecutionStats};
+use apollo_core::types::{AgentSpec, AgentInstance, ExecutionStats};
 use async_trait::async_trait;
 use anyhow::{Result, anyhow};
 use std::process::Stdio;
@@ -119,7 +119,7 @@ impl AgentRuntime for ProcessRuntime {
         sys.refresh_processes();
         for proc in sys.processes().values() {
             // Check environment for the unique workspace marker
-            if proc.environ().iter().any(|e| e.contains(&format!("MARS_WORKSPACE={}", abs_workspace.to_string_lossy()))) {
+            if proc.environ().iter().any(|e| e.contains(&format!("APOLLO_WORKSPACE={}", abs_workspace.to_string_lossy()))) {
                 let _ = signal::kill(NixPid::from_raw(-(proc.pid().as_u32() as i32)), Signal::SIGKILL);
             }
         }
@@ -127,18 +127,18 @@ impl AgentRuntime for ProcessRuntime {
         // 100% Security: Strictly Sanitized Env + Network Kill-switches
         cmd.env_clear();
         cmd.env("PATH", "/usr/bin:/bin:/usr/local/bin:/usr/sbin:/sbin:/Library/Frameworks/Python.framework/Versions/3.13/bin");
-        cmd.env("MARS_TENANT_ID", tenant_id);
-        cmd.env("MARS_AGENT_NAME", &spec.name);
-        cmd.env("MARS_PORT", port.to_string());
-        cmd.env("MARS_WORKSPACE", workspace.to_string_lossy().to_string());
+        cmd.env("APOLLO_TENANT_ID", tenant_id);
+        cmd.env("APOLLO_AGENT_NAME", &spec.name);
+        cmd.env("APOLLO_PORT", port.to_string());
+        cmd.env("APOLLO_WORKSPACE", workspace.to_string_lossy().to_string());
         
         // Block internal network by default (Env-level hint for agents)
         cmd.env("NO_PROXY", "localhost,127.0.0.1,10.0.0.0/8,192.168.0.0/16");
-        cmd.env("MARS_NETWORK_ALLOW_INTERNAL", "false");
+        cmd.env("APOLLO_NETWORK_ALLOW_INTERNAL", "false");
 
         if let Some(env) = &spec.runtime.env {
             for (k, v) in env {
-                if !k.starts_with("MARS_") && k != "PATH" { cmd.env(k, v); }
+                if !k.starts_with("APOLLO_") && k != "PATH" { cmd.env(k, v); }
             }
         }
 

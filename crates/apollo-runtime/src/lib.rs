@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use mars_core::types::{AgentSpec, AgentInstance};
+use apollo_core::types::{AgentSpec, AgentInstance};
 use anyhow::Result;
 
 #[async_trait]

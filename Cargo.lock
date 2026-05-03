@@ -59,6 +59,72 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
+name = "apollo"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "apollo-core",
+ "apollo-runtime",
+ "clap",
+ "dialoguer",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "sysinfo",
+ "tiny_http",
+ "tokio",
+]
+
+[[package]]
+name = "apollo-core"
+version = "3.3.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "dialoguer",
+ "hex",
+ "hmac",
+ "lazy_static",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "sha2",
+ "sysinfo",
+ "tokio",
+ "which",
+]
+
+[[package]]
+name = "apollo-hub"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "apollo-core",
+ "async-trait",
+ "clap",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tiny_http",
+ "tokio",
+]
+
+[[package]]
+name = "apollo-runtime"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "apollo-core",
+ "async-trait",
+ "nix",
+ "serde",
+ "serde_json",
+ "sysinfo",
+ "tokio",
+]
+
+[[package]]
 name = "ascii"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -805,71 +871,6 @@ name = "log"
 version = "0.4.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
-
-[[package]]
-name = "mars-core"
-version = "3.3.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "dialoguer",
- "hex",
- "hmac",
- "lazy_static",
- "reqwest",
- "serde",
- "serde_json",
- "serde_yaml",
- "sha2",
- "sysinfo",
- "tokio",
- "which",
-]
-
-[[package]]
-name = "mars-hub"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "clap",
- "mars-core",
- "reqwest",
- "serde",
- "serde_json",
- "tiny_http",
- "tokio",
-]
-
-[[package]]
-name = "mars-node"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "mars-core",
- "mars-runtime",
- "serde",
- "serde_json",
- "serde_yaml",
- "sysinfo",
- "tiny_http",
- "tokio",
-]
-
-[[package]]
-name = "mars-runtime"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "mars-core",
- "nix",
- "serde",
- "serde_json",
- "sysinfo",
- "tokio",
-]
 
 [[package]]
 name = "memchr"

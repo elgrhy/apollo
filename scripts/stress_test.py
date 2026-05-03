@@ -5,8 +5,8 @@ import os
 import json
 import random
 
-NODE_BINARY = "./target/debug/mars-node"
-HUB_BINARY = "./target/debug/mars-hub"
+NODE_BINARY = "./target/debug/apollo-node"
+HUB_BINARY = "./target/debug/apollo-hub"
 BASE_PORT = 8100
 HUB_PORT = 9100
 SECRET = "STRESS_TEST_KEY"
@@ -16,10 +16,10 @@ AGENTS_PER_NODE = 5
 processes = []
 
 def start_nodes():
-    print(f"🚀 Spawning {NODE_COUNT} MARS Nodes...")
+    print(f"🚀 Spawning {NODE_COUNT} APOLLO Nodes...")
     for i in range(NODE_COUNT):
         port = BASE_PORT + i
-        base_dir = f".mars/stress/node_{i}"
+        base_dir = f".apollo/stress/node_{i}"
         os.makedirs(base_dir, exist_ok=True)
         
         proc = subprocess.Popen([
@@ -32,7 +32,7 @@ def start_nodes():
         print(f"  - Node {i} started on port {port}")
 
 def start_hub():
-    print(f"🧠 Spawning MARS Hub...")
+    print(f"🧠 Spawning APOLLO Hub...")
     # Register nodes first
     for i in range(NODE_COUNT):
         port = BASE_PORT + i

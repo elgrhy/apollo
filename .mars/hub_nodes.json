@@ -1678,5 +1678,125 @@
       "last_seen": 0,
       "failure_count": 0
     }
+  },
+  {
+    "name": "node-0",
+    "ip": "127.0.0.1:8500",
+    "key": "CERTIFICATION_KEY",
+    "status": {
+      "is_online": false,
+      "active_agents": 0,
+      "max_agents": 0,
+      "last_seen": 0,
+      "failure_count": 0
+    }
+  },
+  {
+    "name": "node-1",
+    "ip": "127.0.0.1:8501",
+    "key": "CERTIFICATION_KEY",
+    "status": {
+      "is_online": false,
+      "active_agents": 0,
+      "max_agents": 0,
+      "last_seen": 0,
+      "failure_count": 0
+    }
+  },
+  {
+    "name": "node-2",
+    "ip": "127.0.0.1:8502",
+    "key": "CERTIFICATION_KEY",
+    "status": {
+      "is_online": false,
+      "active_agents": 0,
+      "max_agents": 0,
+      "last_seen": 0,
+      "failure_count": 0
+    }
+  },
+  {
+    "name": "node-3",
+    "ip": "127.0.0.1:8503",
+    "key": "CERTIFICATION_KEY",
+    "status": {
+      "is_online": false,
+      "active_agents": 0,
+      "max_agents": 0,
+      "last_seen": 0,
+      "failure_count": 0
+    }
+  },
+  {
+    "name": "node-4",
+    "ip": "127.0.0.1:8504",
+    "key": "CERTIFICATION_KEY",
+    "status": {
+      "is_online": false,
+      "active_agents": 0,
+      "max_agents": 0,
+      "last_seen": 0,
+      "failure_count": 0
+    }
+  },
+  {
+    "name": "node-5",
+    "ip": "127.0.0.1:8505",
+    "key": "CERTIFICATION_KEY",
+    "status": {
+      "is_online": false,
+      "active_agents": 0,
+      "max_agents": 0,
+      "last_seen": 0,
+      "failure_count": 0
+    }
+  },
+  {
+    "name": "node-6",
+    "ip": "127.0.0.1:8506",
+    "key": "CERTIFICATION_KEY",
+    "status": {
+      "is_online": false,
+      "active_agents": 0,
+      "max_agents": 0,
+      "last_seen": 0,
+      "failure_count": 0
+    }
+  },
+  {
+    "name": "node-7",
+    "ip": "127.0.0.1:8507",
+    "key": "CERTIFICATION_KEY",
+    "status": {
+      "is_online": false,
+      "active_agents": 0,
+      "max_agents": 0,
+      "last_seen": 0,
+      "failure_count": 0
+    }
+  },
+  {
+    "name": "node-8",
+    "ip": "127.0.0.1:8508",
+    "key": "CERTIFICATION_KEY",
+    "status": {
+      "is_online": false,
+      "active_agents": 0,
+      "max_agents": 0,
+      "last_seen": 0,
+      "failure_count": 0
+    }
+  },
+  {
+    "name": "node-9",
+    "ip": "127.0.0.1:8509",
+    "key": "CERTIFICATION_KEY",
+    "status": {
+      "is_online": false,
+      "active_agents": 0,
+      "max_agents": 0,
+      "last_seen": 0,
+      "failure_count": 0
+    }
   }
 ]

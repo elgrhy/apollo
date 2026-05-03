@@ -1,11 +1,11 @@
 [package]
-name = "mars-node"
+name = "apollo"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-mars-core = { path = "../mars-core" }
-mars-runtime = { path = "../mars-runtime" }
+apollo-core = { path = "../apollo-core" }
+apollo-runtime = { path = "../apollo-runtime" }
 anyhow = { workspace = true }
 tokio = { workspace = true }
 clap = { version = "4", features = ["derive", "env"] }
@@ -14,3 +14,4 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml = "0.9"
 tiny_http = { workspace = true }
+dialoguer = { workspace = true }

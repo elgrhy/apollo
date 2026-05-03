@@ -1,8 +1,8 @@
 [workspace]
 members = [
-    "crates/mars-core",
-    "crates/mars-runtime",
-    "crates/mars-node", "crates/mars-hub",
+    "crates/apollo-core",
+    "crates/apollo-runtime",
+    "crates/apollo-node", "crates/apollo-hub",
 ]
 resolver = "2"
 

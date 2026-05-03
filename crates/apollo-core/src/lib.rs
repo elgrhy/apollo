@@ -1,4 +1,4 @@
-//! mars-core — shared primitives for the MARS workspace.
+//! apollo-core — shared primitives for the APOLLO workspace.
 
 pub mod types;
 pub mod agents;
@@ -15,7 +15,7 @@ pub static IOT_MODE: AtomicBool = AtomicBool::new(false);
 
 /// Conditional println — silent in IoT mode.
 #[macro_export]
-macro_rules! mars_print {
+macro_rules! apollo_print {
     ($($arg:tt)*) => {
         if !$crate::IOT_MODE.load(std::sync::atomic::Ordering::Relaxed) {
             println!($($arg)*);
