@@ -1,0 +1,38 @@
+name: gx-hello
+version: 1.0.0
+
+runtime:
+  type: gx
+  entry: main.gx
+  # Apollo will auto-install gx from these URLs if not found on the node
+  command: "gx run {entry}"
+  install:
+    linux:   https://github.com/elgrhy/gx/releases/latest/download/gx-linux-x86_64
+    macos:   https://github.com/elgrhy/gx/releases/latest/download/gx-macos-aarch64
+    windows: https://github.com/elgrhy/gx/releases/latest/download/gx-windows-x86_64.exe
+
+llm:
+  required: false
+  provider: none
+  fallback: true
+
+capabilities:
+  - compute
+  - scripting
+
+triggers:
+  - api
+
+resources:
+  cpu: 0.25
+  memory: 256mb
+  timeout: 60
+
+permissions:
+  network: none
+  filesystem: sandbox
+  processes: restricted
+
+compatibility:
+  os: [linux, darwin, windows]
+  arch: [x86_64, aarch64]

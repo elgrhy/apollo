@@ -1,0 +1,5 @@
+// GX agent entry point — Apollo injects these env vars automatically:
+//   APOLLO_TENANT_ID, APOLLO_AGENT_NAME, APOLLO_PORT, APOLLO_WORKSPACE
+
+print("GX agent running for tenant: " + env("APOLLO_TENANT_ID"))
+print("Workspace: " + env("APOLLO_WORKSPACE"))

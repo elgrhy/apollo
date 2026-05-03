@@ -1,6 +1,6 @@
 [package]
 name    = "apollo-core"
-version = "3.3.0"
+version = "3.4.0"
 edition = "2021"
 
 [dependencies]
@@ -18,3 +18,8 @@ hex        = { workspace = true }
 sysinfo    = { workspace = true }
 which      = { workspace = true }
 async-trait = { workspace = true }
+flate2     = { workspace = true }
+tar        = { workspace = true }
+zip        = { workspace = true }
+tempfile   = { workspace = true }
+semver     = { workspace = true }

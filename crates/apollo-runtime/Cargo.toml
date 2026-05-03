@@ -1,6 +1,6 @@
 [package]
 name = "apollo-runtime"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 
 [dependencies]
@@ -9,6 +9,9 @@ anyhow = { workspace = true }
 tokio = { workspace = true }
 async-trait = { workspace = true }
 sysinfo = "0.30"
-nix = { version = "0.27", features = ["process", "signal"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+# Unix-only: process group management
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.27", features = ["process", "signal"] }

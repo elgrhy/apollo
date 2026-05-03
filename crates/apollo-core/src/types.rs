@@ -9,7 +9,7 @@ use std::collections::HashMap;
 pub struct NodeConfig {
     pub node_id:     String,
     pub provider_id: String,
-    pub secret_keys: Vec<String>, // Multiple keys supported
+    pub secret_keys: Vec<String>,
     pub profile:     NodeProfile,
     pub network:     NodeNetworkPolicy,
 }
@@ -41,8 +41,8 @@ pub struct NodeLLMProfile {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TenantRecord {
-    pub id:   String,
-    pub plan: ResourcePlan,
+    pub id:            String,
+    pub plan:          ResourcePlan,
     pub active_agents: Vec<String>,
 }
 
@@ -53,14 +53,15 @@ pub struct ResourcePlan {
     pub memory_limit: String,
 }
 
-// ── Agent Records (Activation Layer) ──────────────────────────────────────────
+// ── Agent Records ────────────────────────────────────────────────────────────
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AgentRecord {
-    pub id:         String,
-    pub spec:       AgentSpec,
-    pub checksum:   String,
-    pub created_at: u64,
+    pub id:          String,
+    pub spec:        AgentSpec,
+    pub checksum:    String,
+    pub created_at:  u64,
+    pub prev_version: Option<String>,   // last version before this update
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -85,15 +86,15 @@ pub struct ExecutionStats {
     pub is_failed:     bool,
 }
 
-// ── Control Plane Protocol ──────────────────────────────────────────────────
+// ── Control Plane Protocol ────────────────────────────────────────────────────
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RemoteCommand {
-    pub id:      String,
-    pub action:  String,
-    pub agent:   String,
-    pub tenant:  String,
-    pub params:  Option<HashMap<String, String>>,
+    pub id:     String,
+    pub action: String,
+    pub agent:  String,
+    pub tenant: String,
+    pub params: Option<HashMap<String, String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -103,19 +104,19 @@ pub struct CommandResult {
     pub message:    String,
 }
 
-// ── Agent Specification (agent.yaml) ──────────────────────────────────────────
+// ── Agent Specification (agent.yaml) ─────────────────────────────────────────
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AgentSpec {
-    pub name:          String,
-    pub version:       String,
-    pub runtime:       AgentRuntimeConfig,
-    pub llm:           AgentLLMConfig,
-    pub capabilities:  Vec<String>,
-    pub triggers:      Vec<String>,
-    pub resources:     AgentResourceLimits,
-    pub permissions:   AgentPermissionConfig,
-    pub compatibility: AgentCompatibility,
+    pub name:           String,
+    pub version:        String,
+    pub runtime:        AgentRuntimeConfig,
+    pub llm:            AgentLLMConfig,
+    pub capabilities:   Vec<String>,
+    pub triggers:       Vec<String>,
+    pub resources:      AgentResourceLimits,
+    pub permissions:    AgentPermissionConfig,
+    pub compatibility:  AgentCompatibility,
     pub restart_policy: Option<RestartPolicy>,
 }
 
@@ -125,12 +126,32 @@ pub struct RestartPolicy {
     pub window_secs:  u32,
 }
 
+/// Runtime configuration — accepts both `type:` and `kind:` YAML keys.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AgentRuntimeConfig {
-    #[serde(rename = "type")]
-    pub kind:  String,
-    pub entry: String,
-    pub env:   Option<HashMap<String, String>>,
+    /// Runtime type: python3 | node | go | deno | bun | ruby | gx | rust | shell | <custom>
+    #[serde(rename = "type", alias = "kind")]
+    pub kind:    String,
+    /// Entry point relative to the agent package directory.
+    pub entry:   String,
+    /// Optional extra env vars injected into the agent process.
+    pub env:     Option<HashMap<String, String>>,
+    /// Override launch command. Use `{entry}` as placeholder for the resolved entry path.
+    /// Example: "gx run {entry}" or "deno run --allow-net {entry}"
+    pub command: Option<String>,
+    /// Optional auto-install URLs for missing runtimes. Apollo downloads and installs
+    /// to `base_dir/runtimes/{kind}/` if the runtime binary is not found on the node.
+    pub install: Option<RuntimeInstallConfig>,
+}
+
+/// Per-platform download URLs for auto-installing a runtime binary.
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct RuntimeInstallConfig {
+    pub linux:   Option<String>,
+    pub macos:   Option<String>,
+    pub windows: Option<String>,
+    /// Fallback: a cross-platform install script path (run via shell/bash).
+    pub script:  Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -160,15 +181,15 @@ pub struct AgentCompatibility {
     pub arch: Vec<String>,
 }
 
-// ── Event Spine ──────────────────────────────────────────────────────────────
+// ── Event Spine ───────────────────────────────────────────────────────────────
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ApolloEvent {
     pub timestamp:      u64,
     pub node_id:        String,
-    pub level:          String, // INFO, WARN, ERROR, FATAL
-    pub category:       String, // LIFECYCLE, RESOURCE, SECURITY, HEALTH
-    pub action:         String, // AGENT_START, AGENT_STOP, NODE_RECOVER, etc.
+    pub level:          String,
+    pub category:       String,
+    pub action:         String,
     pub message:        String,
     pub correlation_id: Option<String>,
     pub metadata:       Option<HashMap<String, String>>,
@@ -176,13 +197,16 @@ pub struct ApolloEvent {
 
 pub fn log_event(event: ApolloEvent) {
     let log_path = std::path::PathBuf::from(".apollo/events.jsonl");
-    if let Some(parent) = log_path.parent() { let _ = std::fs::create_dir_all(parent); }
+    if let Some(parent) = log_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
     if let Ok(json) = serde_json::to_string(&event) {
         use std::io::Write;
-        if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(log_path) {
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true).append(true).open(log_path)
+        {
             let _ = writeln!(file, "{}", json);
         }
     }
-    // Also print to stdout for script visibility
     println!("[{}] {} | {} | {}", event.level, event.category, event.action, event.message);
 }

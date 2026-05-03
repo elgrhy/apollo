@@ -1,17 +1,28 @@
+//! Cross-platform agent process runtime.
+//!
+//! Unix:    process groups via setpgid + killpg (nix crate)
+//! Windows: new process group via CREATE_NEW_PROCESS_GROUP + taskkill /F /T
+
 use crate::AgentRuntime;
 use apollo_core::types::{AgentSpec, AgentInstance, ExecutionStats};
+use apollo_core::runtime_registry::{resolve_launch, ensure_runtime, instances_path};
 use async_trait::async_trait;
 use anyhow::{Result, anyhow};
 use std::process::Stdio;
 use tokio::process::Command;
 use std::time::{SystemTime, Duration};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::fs::{self, OpenOptions};
 use sysinfo::{System, Pid};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+
+#[cfg(unix)]
 use nix::sys::signal::{self, Signal};
+#[cfg(unix)]
 use nix::unistd::Pid as NixPid;
+
+// ── ProcessRuntime ────────────────────────────────────────────────────────────
 
 pub struct ProcessRuntime {
     pub base_dir: PathBuf,
@@ -23,197 +34,382 @@ impl ProcessRuntime {
         Self { base_dir }
     }
 
-    fn agent_code_dir(&self, agent_name: &str) -> PathBuf {
-        self.base_dir.join("agents").join(agent_name)
+    fn agent_code_dir(&self, name: &str) -> PathBuf {
+        self.base_dir.join("agents").join(name)
     }
 
-    fn tenant_workspace_dir(&self, tenant_id: &str, agent_name: &str) -> PathBuf {
-        self.base_dir.join("tenants").join(tenant_id).join(agent_name)
+    fn tenant_workspace_dir(&self, tenant_id: &str, name: &str) -> PathBuf {
+        self.base_dir.join("tenants").join(tenant_id).join(name)
     }
 
-    fn tenant_log_file(&self, tenant_id: &str, agent_name: &str) -> PathBuf {
-        self.base_dir.join("logs").join(tenant_id).join(format!("{}.log", agent_name))
+    fn tenant_log_file(&self, tenant_id: &str, name: &str) -> PathBuf {
+        self.base_dir.join("logs").join(tenant_id).join(format!("{}.log", name))
     }
 
-    fn compute_port(&self, tenant_id: &str, agent_name: &str) -> u16 {
+    fn runtimes_dir(&self) -> PathBuf {
+        self.base_dir.join("runtimes")
+    }
+
+    fn pid_file(&self, tenant_id: &str, name: &str) -> PathBuf {
+        self.tenant_workspace_dir(tenant_id, name).join(".apollo.pid")
+    }
+
+    /// Deterministic port assignment — no collisions across unlimited tenants
+    /// because the hash is consistent for a given (tenant, agent) pair.
+    fn compute_port(&self, tenant_id: &str, name: &str) -> u16 {
         let mut hasher = DefaultHasher::new();
         tenant_id.hash(&mut hasher);
-        agent_name.hash(&mut hasher);
-        let hash = hasher.finish();
-        10000 + (hash % 50000) as u16
+        name.hash(&mut hasher);
+        10000 + (hasher.finish() % 55535) as u16  // range 10000–65535
     }
 
     fn rotate_logs(&self, log_path: &PathBuf) -> Result<()> {
-        if let Ok(metadata) = fs::metadata(log_path) {
-            if metadata.len() > 10 * 1024 * 1024 {
-                let rotated_path = log_path.with_extension("log.old");
-                let _ = fs::rename(log_path, rotated_path);
+        if let Ok(meta) = fs::metadata(log_path) {
+            if meta.len() > 10 * 1024 * 1024 {
+                let _ = fs::rename(log_path, log_path.with_extension("log.old"));
             }
         }
         Ok(())
     }
 
-    fn harden_path(&self, root: &PathBuf, path: &PathBuf) -> Result<PathBuf> {
-        let joined = root.join(path);
+    fn harden_path(&self, root: &PathBuf, sub: &PathBuf) -> Result<PathBuf> {
+        let joined = root.join(sub);
         let canonical = fs::canonicalize(&joined).unwrap_or(joined);
         if !canonical.starts_with(root) {
-            return Err(anyhow!("Security violation: Path escape detected"));
+            return Err(anyhow!("Security violation: path escape detected"));
         }
         Ok(canonical)
     }
 }
 
+// ── Platform-specific process group control ───────────────────────────────────
+
+#[cfg(unix)]
+fn spawn_in_group(cmd: &mut Command) {
+    unsafe {
+        cmd.pre_exec(|| {
+            let _ = nix::unistd::setpgid(NixPid::from_raw(0), NixPid::from_raw(0));
+            Ok(())
+        });
+    }
+}
+
+#[cfg(windows)]
+fn spawn_in_group(cmd: &mut Command) {
+    const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+    cmd.creation_flags(CREATE_NEW_PROCESS_GROUP);
+}
+
+#[cfg(not(any(unix, windows)))]
+fn spawn_in_group(_cmd: &mut Command) {}
+
+/// Kill a process and all its children (process group / tree).
+pub fn kill_group(pid: u32, force: bool) {
+    #[cfg(unix)]
+    {
+        let sig = if force { Signal::SIGKILL } else { Signal::SIGTERM };
+        let _ = signal::kill(NixPid::from_raw(-(pid as i32)), sig);
+    }
+    #[cfg(windows)]
+    {
+        let flag = if force { "/F" } else { "" };
+        let mut args = vec!["/T", "/PID", &pid.to_string()];
+        if force { args.insert(0, "/F"); }
+        let _ = std::process::Command::new("taskkill").args(&args).output();
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = std::process::Command::new("kill")
+            .arg(if force { "-9" } else { "-15" })
+            .arg(pid.to_string())
+            .output();
+    }
+}
+
+/// Build sanitized PATH string appropriate for the current platform.
+fn build_path(runtimes_dir: &Path, runtime_kind: &str) -> String {
+    let runtime_bin_dir = runtimes_dir.join(runtime_kind);
+
+    #[cfg(unix)]
+    {
+        let mut parts: Vec<String> = vec![
+            "/usr/local/bin".into(),
+            "/usr/bin".into(),
+            "/bin".into(),
+            "/usr/sbin".into(),
+            "/sbin".into(),
+            "/opt/homebrew/bin".into(),  // Apple Silicon Homebrew
+            "/opt/homebrew/sbin".into(),
+            "/usr/local/go/bin".into(),  // Go
+        ];
+        // Locally installed runtimes take precedence
+        if runtime_bin_dir.exists() {
+            parts.insert(0, runtime_bin_dir.to_string_lossy().to_string());
+        }
+        // Python framework paths on macOS
+        #[cfg(target_os = "macos")]
+        for ver in &["3.13", "3.12", "3.11", "3.10", "3.9"] {
+            let p = format!(
+                "/Library/Frameworks/Python.framework/Versions/{}/bin",
+                ver
+            );
+            if std::path::Path::new(&p).exists() {
+                parts.push(p);
+            }
+        }
+        parts.join(":")
+    }
+
+    #[cfg(windows)]
+    {
+        let sys = std::env::var("PATH").unwrap_or_default();
+        if runtime_bin_dir.exists() {
+            format!("{};{}", runtime_bin_dir.display(), sys)
+        } else {
+            sys
+        }
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    {
+        std::env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".to_string())
+    }
+}
+
+/// Sweep an orphaned agent by PID file and kill it if still running.
+fn sweep_orphan(pid_file: &Path) {
+    if let Ok(content) = fs::read_to_string(pid_file) {
+        if let Ok(pid) = content.trim().parse::<u32>() {
+            let mut sys = System::new_all();
+            sys.refresh_processes();
+            if sys.process(Pid::from(pid as usize)).is_some() {
+                kill_group(pid, true);
+            }
+        }
+        let _ = fs::remove_file(pid_file);
+    }
+}
+
+// ── Per-tenant sharded instance storage ──────────────────────────────────────
+
+pub fn load_tenant_instances(base_dir: &Path, tenant_id: &str) -> Result<Vec<AgentInstance>> {
+    let path = instances_path(base_dir, tenant_id);
+    if !path.exists() {
+        return Ok(vec![]);
+    }
+    let raw = fs::read_to_string(&path)?;
+    Ok(serde_json::from_str(&raw)?)
+}
+
+pub fn save_tenant_instances(base_dir: &Path, tenant_id: &str, instances: &[AgentInstance]) -> Result<()> {
+    let path = instances_path(base_dir, tenant_id);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(path, serde_json::to_string_pretty(instances)?)?;
+    Ok(())
+}
+
+pub fn save_instance(base_dir: &Path, instance: &AgentInstance) -> Result<()> {
+    let mut instances = load_tenant_instances(base_dir, &instance.tenant_id)?;
+    if let Some(pos) = instances.iter().position(|i| i.id == instance.id) {
+        instances[pos] = instance.clone();
+    } else {
+        instances.push(instance.clone());
+    }
+    save_tenant_instances(base_dir, &instance.tenant_id, &instances)
+}
+
+/// Count all running instances across all tenants.
+pub fn count_active_instances(base_dir: &Path) -> usize {
+    let instances_dir = base_dir.join("instances");
+    if !instances_dir.exists() {
+        return 0;
+    }
+    let mut count = 0;
+    if let Ok(entries) = fs::read_dir(&instances_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if name_str.starts_with('_') { continue; } // skip index
+            if let Ok(raw) = fs::read_to_string(entry.path()) {
+                if let Ok(instances) = serde_json::from_str::<Vec<AgentInstance>>(&raw) {
+                    count += instances.iter().filter(|i| i.status == "running").count();
+                }
+            }
+        }
+    }
+    count
+}
+
+/// Load all instances across all tenants (for startup recovery).
+pub fn load_all_instances(base_dir: &Path) -> Vec<AgentInstance> {
+    let instances_dir = base_dir.join("instances");
+    let mut all = Vec::new();
+    if let Ok(entries) = fs::read_dir(&instances_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            if name.to_string_lossy().starts_with('_') { continue; }
+            if let Ok(raw) = fs::read_to_string(entry.path()) {
+                if let Ok(instances) = serde_json::from_str::<Vec<AgentInstance>>(&raw) {
+                    all.extend(instances);
+                }
+            }
+        }
+    }
+    all
+}
+
+// ── AgentRuntime impl ────────────────────────────────────────────────────────
+
 #[async_trait]
 impl AgentRuntime for ProcessRuntime {
     async fn install(&self, spec: &AgentSpec) -> Result<()> {
-        let dir = self.agent_code_dir(&spec.name);
-        tokio::fs::create_dir_all(&dir).await?;
+        fs::create_dir_all(self.agent_code_dir(&spec.name))?;
+        let runtimes_dir = self.runtimes_dir();
+        fs::create_dir_all(&runtimes_dir)?;
+        ensure_runtime(&spec.runtime, &runtimes_dir).await?;
         Ok(())
     }
 
     async fn activate(&self, tenant_id: &str, spec: &AgentSpec) -> Result<()> {
-        let workspace = self.tenant_workspace_dir(tenant_id, &spec.name);
-        tokio::fs::create_dir_all(&workspace).await?;
-        let log_dir = self.base_dir.join("logs").join(tenant_id);
-        tokio::fs::create_dir_all(&log_dir).await?;
+        fs::create_dir_all(self.tenant_workspace_dir(tenant_id, &spec.name))?;
+        fs::create_dir_all(self.base_dir.join("logs").join(tenant_id))?;
         Ok(())
     }
 
     async fn start(&self, tenant_id: &str, spec: &AgentSpec) -> Result<AgentInstance> {
-        let workspace = self.tenant_workspace_dir(tenant_id, &spec.name);
-        let code_dir = self.agent_code_dir(&spec.name);
-        let port = self.compute_port(tenant_id, &spec.name);
-        let log_path = self.tenant_log_file(tenant_id, &spec.name);
-        
-        fs::create_dir_all(&workspace)?;
-        if let Some(parent) = log_path.parent() { fs::create_dir_all(parent)?; }
+        let workspace   = self.tenant_workspace_dir(tenant_id, &spec.name);
+        let code_dir    = self.agent_code_dir(&spec.name);
+        let port        = self.compute_port(tenant_id, &spec.name);
+        let log_path    = self.tenant_log_file(tenant_id, &spec.name);
+        let runtimes_dir = self.runtimes_dir();
+        let pid_file    = self.pid_file(tenant_id, &spec.name);
 
+        fs::create_dir_all(&workspace)?;
+        if let Some(p) = log_path.parent() { fs::create_dir_all(p)?; }
         self.rotate_logs(&log_path)?;
 
         let entry_path = self.harden_path(&code_dir, &PathBuf::from(&spec.runtime.entry))?;
-        
-        let mut cmd = if spec.runtime.kind == "python3" {
-            let mut c = Command::new("python3");
-            c.arg(&entry_path);
-            c
-        } else {
-            Command::new(&entry_path)
-        };
 
-        unsafe {
-            cmd.pre_exec(|| {
-                let _ = nix::unistd::setpgid(NixPid::from_raw(0), NixPid::from_raw(0));
-                Ok(())
-            });
-        }
+        // Resolve binary + args for any runtime type
+        let (binary, args) = resolve_launch(&spec.runtime, &entry_path, &runtimes_dir)
+            .map_err(|e| anyhow!("Runtime '{}' unavailable: {}", spec.runtime.kind, e))?;
+
+        let mut cmd = Command::new(&binary);
+        cmd.args(&args);
+
+        // Isolate process group (platform-specific)
+        spawn_in_group(&mut cmd);
 
         cmd.current_dir(&workspace);
-        
+
         let log_file = OpenOptions::new().create(true).append(true).open(&log_path)?;
         cmd.stdout(Stdio::from(log_file.try_clone()?));
         cmd.stderr(Stdio::from(log_file));
 
-        // 100% Stability: Pre-flight cleanup of orphans in this workspace
-        let abs_workspace = fs::canonicalize(&workspace).unwrap_or_else(|_| workspace.clone());
-        let mut sys = System::new_all();
-        sys.refresh_processes();
-        for proc in sys.processes().values() {
-            // Check environment for the unique workspace marker
-            if proc.environ().iter().any(|e| e.contains(&format!("APOLLO_WORKSPACE={}", abs_workspace.to_string_lossy()))) {
-                let _ = signal::kill(NixPid::from_raw(-(proc.pid().as_u32() as i32)), Signal::SIGKILL);
-            }
-        }
+        // Kill any leftover orphan from a previous crash
+        sweep_orphan(&pid_file);
 
-        // 100% Security: Strictly Sanitized Env + Network Kill-switches
+        // Sanitized environment
         cmd.env_clear();
-        cmd.env("PATH", "/usr/bin:/bin:/usr/local/bin:/usr/sbin:/sbin:/Library/Frameworks/Python.framework/Versions/3.13/bin");
+        cmd.env("PATH", build_path(&runtimes_dir, &spec.runtime.kind));
+        cmd.env("PYTHONUNBUFFERED", "1");
+        cmd.env("NODE_NO_WARNINGS", "1");
         cmd.env("APOLLO_TENANT_ID", tenant_id);
         cmd.env("APOLLO_AGENT_NAME", &spec.name);
         cmd.env("APOLLO_PORT", port.to_string());
         cmd.env("APOLLO_WORKSPACE", workspace.to_string_lossy().to_string());
-        
-        // Block internal network by default (Env-level hint for agents)
         cmd.env("NO_PROXY", "localhost,127.0.0.1,10.0.0.0/8,192.168.0.0/16");
         cmd.env("APOLLO_NETWORK_ALLOW_INTERNAL", "false");
 
-        if let Some(env) = &spec.runtime.env {
-            for (k, v) in env {
-                if !k.starts_with("APOLLO_") && k != "PATH" { cmd.env(k, v); }
+        // Windows needs a few system vars to function
+        #[cfg(windows)]
+        for var in &["SYSTEMROOT", "SYSTEMDRIVE", "WINDIR", "TEMP", "TMP", "COMSPEC"] {
+            if let Ok(val) = std::env::var(var) {
+                cmd.env(var, val);
             }
         }
 
-        let child = cmd.spawn()?;
-        let pid = child.id();
-        let created_at = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?.as_secs();
+        if let Some(env) = &spec.runtime.env {
+            for (k, v) in env {
+                if !k.starts_with("APOLLO_") && k != "PATH" {
+                    cmd.env(k, v);
+                }
+            }
+        }
 
-        let pid_val = pid.unwrap_or(0);
-        let mem_limit_mb = parse_memory_limit(&spec.resources.memory);
+        let child  = cmd.spawn()?;
+        let pid    = child.id();
+        let now    = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?.as_secs();
+
+        // Write PID file for cross-platform orphan tracking
+        if let Some(p) = pid {
+            let _ = fs::write(&pid_file, p.to_string());
+        }
+
+        let pid_val       = pid.unwrap_or(0);
+        let mem_limit_mb  = parse_memory_limit(&spec.resources.memory);
         let cpu_limit_pct = spec.resources.cpu * 100.0;
-        
+
+        // Resource enforcement monitor
         tokio::spawn(async move {
             let mut sys = System::new_all();
-            let mut cpu_violation_count = 0;
+            let mut cpu_strikes = 0u32;
             loop {
                 tokio::time::sleep(Duration::from_secs(5)).await;
                 sys.refresh_processes();
-                if let Some(proc) = sys.process(Pid::from(pid_val as usize)) {
-                    let mem_mb = proc.memory() / 1024 / 1024;
-                    if mem_mb > mem_limit_mb {
-                        let _ = signal::kill(NixPid::from_raw(-(pid_val as i32)), Signal::SIGKILL);
-                        break;
+                match sys.process(Pid::from(pid_val as usize)) {
+                    None => break,
+                    Some(proc) => {
+                        if proc.memory() / 1024 / 1024 > mem_limit_mb {
+                            kill_group(pid_val, true);
+                            break;
+                        }
+                        if proc.cpu_usage() > cpu_limit_pct {
+                            cpu_strikes += 1;
+                            if cpu_strikes >= 3 {
+                                kill_group(pid_val, true);
+                                break;
+                            }
+                        } else {
+                            cpu_strikes = 0;
+                        }
                     }
-                    let cpu_usage = proc.cpu_usage();
-                    if cpu_usage > cpu_limit_pct {
-                        cpu_violation_count += 1;
-                    } else {
-                        cpu_violation_count = 0;
-                    }
-                    if cpu_violation_count >= 3 {
-                        let _ = signal::kill(NixPid::from_raw(-(pid_val as i32)), Signal::SIGKILL);
-                        break;
-                    }
-                } else {
-                    break;
                 }
             }
         });
 
         Ok(AgentInstance {
-            id: format!("{}-{}", spec.name, created_at % 10000),
-            agent_id: spec.name.clone(),
-            tenant_id: tenant_id.to_string(),
-            status: "running".to_string(),
+            id:         format!("{}-{}", spec.name, now % 100_000),
+            agent_id:   spec.name.clone(),
+            tenant_id:  tenant_id.to_string(),
+            status:     "running".to_string(),
             pid,
-            port: Some(port),
-            stats: ExecutionStats {
-                last_restart: created_at,
-                ..Default::default()
-            },
-            created_at,
+            port:       Some(port),
+            stats:      ExecutionStats { last_restart: now, ..Default::default() },
+            created_at: now,
         })
     }
 
     async fn stop(&self, pid: u32) -> Result<()> {
-        let _ = signal::kill(NixPid::from_raw(-(pid as i32)), Signal::SIGTERM);
+        kill_group(pid, false);
         tokio::time::sleep(Duration::from_secs(2)).await;
-        let _ = signal::kill(NixPid::from_raw(-(pid as i32)), Signal::SIGKILL);
+        kill_group(pid, true);
         Ok(())
     }
 
-    async fn status(&self, _instance_id: &str) -> Result<String> { Ok("running".to_string()) }
-    async fn health_check(&self, _instance_id: &str) -> Result<bool> { Ok(true) }
-
-    async fn shutdown(&self) -> Result<()> {
-        Ok(())
-    }
+    async fn status(&self, _id: &str) -> Result<String> { Ok("running".to_string()) }
+    async fn health_check(&self, _id: &str) -> Result<bool> { Ok(true) }
+    async fn shutdown(&self) -> Result<()> { Ok(()) }
 }
 
 fn parse_memory_limit(limit: &str) -> u64 {
-    let cleaned = limit.to_lowercase();
-    if cleaned.ends_with("gb") {
-        cleaned.replace("gb", "").trim().parse::<u64>().unwrap_or(1) * 1024
-    } else if cleaned.ends_with("mb") {
-        cleaned.replace("mb", "").trim().parse::<u64>().unwrap_or(512)
+    let s = limit.to_lowercase();
+    if s.ends_with("gb") {
+        s.trim_end_matches("gb").trim().parse::<u64>().unwrap_or(1) * 1024
+    } else if s.ends_with("mb") {
+        s.trim_end_matches("mb").trim().parse::<u64>().unwrap_or(512)
     } else {
         512
     }

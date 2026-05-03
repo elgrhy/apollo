@@ -3,10 +3,13 @@
 pub mod types;
 pub mod agents;
 pub mod detect;
+pub mod fetch;
+pub mod runtime_registry;
 
 pub use types::*;
-pub use detect::detect_node_capabilities;
-pub use agents::{load_agent_registry, save_agent_registry, register_agent_package, now_unix};
+pub use detect::{detect_node_capabilities, detect_node_capabilities_with_dir};
+pub use agents::{load_agent_registry, save_agent_registry, register_agent_package,
+                 rollback_agent, remove_agent, now_unix};
 
 use std::sync::atomic::AtomicBool;
 

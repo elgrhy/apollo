@@ -2,17 +2,17 @@
 members = [
     "crates/apollo-core",
     "crates/apollo-runtime",
-    "crates/apollo-node", "crates/apollo-hub",
+    "crates/apollo-node",
+    "crates/apollo-hub",
 ]
 resolver = "2"
 
-# Shared dependency versions across all crates.
 [workspace.dependencies]
 anyhow      = "1.0"
 serde       = { version = "1.0", features = ["derive"] }
 serde_json  = "1.0"
-tokio       = { version = "1",   features = ["full"] }
-reqwest     = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
+tokio       = { version = "1", features = ["full"] }
+reqwest     = { version = "0.11", default-features = false, features = ["json", "rustls-tls", "blocking", "stream"] }
 dialoguer   = "0.11"
 lazy_static = "1.4"
 which       = "6.0"
@@ -21,5 +21,10 @@ whoami      = "1.5"
 sha2        = "0.10"
 hmac        = "0.12"
 hex         = "0.4"
-tiny_http    = "0.12"
-async-trait  = "0.1"
+tiny_http   = "0.12"
+async-trait = "0.1"
+flate2      = "1.0"
+tar         = "0.4"
+zip         = "0.6"
+tempfile    = "3.10"
+semver      = "1.0"

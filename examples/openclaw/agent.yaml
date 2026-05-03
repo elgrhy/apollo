@@ -4,6 +4,14 @@ version: 1.0.0
 runtime:
   type: python3
   entry: main.py
+  # Optional: override launch command (uncomment to use)
+  # command: "python3 -u {entry}"
+  #
+  # Optional: auto-install Python if missing on the node
+  # install:
+  #   linux:   https://www.python.org/ftp/python/3.11.9/Python-3.11.9.tgz
+  #   macos:   https://www.python.org/ftp/python/3.11.9/python-3.11.9-macos11.pkg
+  #   windows: https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe
 
 llm:
   required: true
@@ -34,5 +42,5 @@ permissions:
   processes: restricted
 
 compatibility:
-  os: [linux, darwin]
+  os: [linux, darwin, windows]
   arch: [x86_64, aarch64]
