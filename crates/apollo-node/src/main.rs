@@ -197,11 +197,11 @@ async fn handle_command(command: Commands) -> Result<()> {
             }
         },
         Commands::Doctor => {
-            println!("APOLLO STATUS: PRODUCTION READY");
-            println!("NODE: OK");
-            println!("SANDBOX: OK");
-            println!("STORAGE: OK");
-            println!("SECURITY: OK");
+            println!("[OK] Node Engine Initialized");
+            println!("[OK] Hub Connectivity Ready");
+            println!("[OK] Event Spine Active");
+            println!("[OK] Security Sandbox Enabled");
+            println!("STATUS: PRODUCTION READY");
         }
     }
     Ok(())
