@@ -1,0 +1,15 @@
+[package]
+name = "mars-node"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+mars-core = { path = "../mars-core" }
+mars-runtime = { path = "../mars-runtime" }
+anyhow = { workspace = true }
+tokio = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = "0.9"
+tiny_http = { workspace = true }

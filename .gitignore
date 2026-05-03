@@ -1,0 +1,22 @@
+/target/
+
+# Credentials — never commit API keys
+.env
+
+# MARS runtime state (re-generated on each run)
+.mars/profile.json
+.mars/swarm.json
+
+# Keep memory.json and agents.json if you want to persist ATLAS state across clones.
+# Uncomment the lines below to also ignore them:
+# .mars/memory.json
+# .mars/agents.json
+
+# Test artifacts — live integration test downloads (binaries, logs, env files)
+.picoclaw/
+.cranberry/
+.openclaw/
+crates/mars-bootstrap/.picoclaw/
+crates/mars-bootstrap/.cranberry/
+crates/mars-bootstrap/.openclaw/
+

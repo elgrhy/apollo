@@ -1,0 +1,17 @@
+name: "hello-agent"
+version: "1.0.0"
+description: "A simple hello world agent for MARS Provider Edition"
+runtime:
+  entry: "echo 'Hello MARS'"
+  kind: "shell"
+  model: "none"
+  tools: []
+  env:
+    AGENT_NAME: "HelloAgent"
+limits:
+  cpu: 0.1
+  memory: 128
+  timeout: 30
+permissions:
+  network: "none"
+  filesystem: "sandboxed"

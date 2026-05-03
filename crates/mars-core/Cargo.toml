@@ -1,0 +1,16 @@
+[package]
+name    = "mars-core"
+version = "3.3.0"
+edition = "2021"
+
+[dependencies]
+anyhow     = { workspace = true }
+serde      = { workspace = true }
+serde_json = { workspace = true }
+tokio      = { workspace = true }
+reqwest    = { workspace = true }
+lazy_static = { workspace = true }
+dialoguer  = { workspace = true }
+sha2       = { workspace = true }
+hmac       = { workspace = true }
+hex        = { workspace = true }

@@ -1,0 +1,125 @@
+DEVJSX LIMITED — MARS SOFTWARE LICENSE
+Version 1.0 — Effective March 2026
+
+Copyright (c) 2026 DEVJSX LIMITED
+128 City Road, London, United Kingdom, EC1V 2NX
+Company Number: 16618207 (England and Wales)
+Website: https://www.devjsx.com
+
+─────────────────────────────────────────────────────────────────────────────
+IMPORTANT: READ THIS LICENSE CAREFULLY BEFORE USING THE SOFTWARE.
+BY DOWNLOADING, INSTALLING, OR USING MARS, YOU AGREE TO BE BOUND BY THE TERMS
+OF THIS LICENSE. IF YOU DO NOT AGREE, DO NOT INSTALL OR USE THE SOFTWARE.
+─────────────────────────────────────────────────────────────────────────────
+
+1. GRANT OF LICENSE
+
+   Subject to the terms of this License and payment of applicable fees,
+   DEVJSX LIMITED ("DEVJSX") grants you a non-exclusive, non-transferable,
+   revocable license to:
+
+   (a) Download and install MARS on devices that you own or control;
+   (b) Use MARS for personal or commercial purposes, subject to the tier
+       restrictions set out in Section 2;
+   (c) Use MARS to bootstrap and operate ATLAS, the autonomous agent system.
+
+2. LICENSE TIERS
+
+   2.1 FREE TIER
+   Available via a valid promotional code issued by DEVJSX. Free-tier users
+   may use MARS with their own AI provider API keys at no charge. DEVJSX
+   reserves the right to modify or discontinue promotional offers at any time.
+
+   2.2 PRO TIER ($7.00 USD/month, excluding applicable taxes)
+   Pro-tier users may use MARS with their own AI provider API keys. A valid
+   active subscription is required. Subscription fees are charged monthly in
+   advance via Stripe. All fees are exclusive of VAT, sales tax, and other
+   applicable taxes, which are the sole responsibility of the subscriber.
+
+   2.3 FUTURE TIERS
+   Additional tiers, including managed API key services, may be introduced
+   at DEVJSX's sole discretion. Existing subscribers will be notified of
+   any new offering.
+
+3. RESTRICTIONS
+
+   You may NOT:
+   (a) Copy, modify, distribute, sublicense, or sell the MARS binary or
+       source code without prior written permission from DEVJSX;
+   (b) Reverse-engineer, decompile, or disassemble MARS except to the
+       extent expressly permitted by applicable law;
+   (c) Remove or alter any proprietary notices or labels on the software;
+   (d) Use MARS to build a product that directly competes with MARS or ATLAS
+       without a separate commercial agreement with DEVJSX;
+   (e) Share, transfer, or resell your license key to any third party;
+   (f) Circumvent or attempt to circumvent the license validation system.
+
+4. OWNERSHIP
+
+   MARS, ATLAS, and all associated intellectual property remain the exclusive
+   property of DEVJSX LIMITED. This License does not transfer any ownership
+   rights to you. All rights not expressly granted herein are reserved.
+
+5. AI PROVIDER API KEYS
+
+   When using MARS with your own API keys (Free and Pro tiers), those keys
+   are stored locally on your device. DEVJSX does not collect, store, or
+   transmit your API keys. You are solely responsible for the security of
+   your keys and any charges incurred with your AI provider.
+
+6. DATA AND PRIVACY
+
+   MARS operates primarily on your local device. The following limited data
+   is transmitted to DEVJSX servers for license validation:
+   - Your license key (to confirm validity and subscription status)
+   - Your device OS and architecture (for compatibility checks)
+   No personally identifiable information is collected beyond your email
+   address (provided at subscription). DEVJSX processes data in accordance
+   with UK GDPR and the Data Protection Act 2018.
+
+7. SUBSCRIPTION AND BILLING
+
+   7.1 Subscriptions auto-renew monthly unless cancelled before the renewal date.
+   7.2 Cancellations take effect at the end of the current billing period.
+   7.3 No refunds are issued for partial months unless required by law.
+   7.4 DEVJSX reserves the right to change pricing with 30 days' notice.
+   7.5 Prices are exclusive of all taxes. UK VAT applies where required by law.
+
+8. DISCLAIMER OF WARRANTIES
+
+   MARS IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+   INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+   PARTICULAR PURPOSE, OR NON-INFRINGEMENT. DEVJSX DOES NOT WARRANT THAT
+   MARS WILL BE ERROR-FREE OR UNINTERRUPTED.
+
+9. LIMITATION OF LIABILITY
+
+   TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, DEVJSX SHALL NOT BE
+   LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE
+   DAMAGES ARISING FROM YOUR USE OF MARS, EVEN IF DEVJSX HAS BEEN ADVISED
+   OF THE POSSIBILITY OF SUCH DAMAGES. DEVJSX'S TOTAL LIABILITY SHALL NOT
+   EXCEED THE FEES PAID BY YOU IN THE THREE (3) MONTHS PRECEDING THE CLAIM.
+
+10. TERMINATION
+
+    This License is effective until terminated. It terminates automatically if:
+    (a) You breach any term of this License;
+    (b) Your subscription lapses and is not renewed within 7 days;
+    (c) You request termination in writing.
+    Upon termination, you must cease all use and delete all copies of MARS.
+
+11. GOVERNING LAW
+
+    This License is governed by the laws of England and Wales. Any disputes
+    shall be subject to the exclusive jurisdiction of the courts of England
+    and Wales.
+
+12. CONTACT
+
+    DEVJSX LIMITED
+    128 City Road, London, United Kingdom, EC1V 2NX
+    ahmed@devjsx.com
+    https://www.devjsx.com
+
+─────────────────────────────────────────────────────────────────────────────
+END OF LICENSE
