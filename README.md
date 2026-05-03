@@ -16,17 +16,19 @@ APOLLO is built on a **Mission Control** philosophy:
 
 ## 📦 Getting Started
 
-### 1. Install (Global)
-Run the professional installer to set up the Apollo environment:
+### ⚡ One-Line Installation (Recommended)
+Deploy the certified v1.0 production environment with a single command:
 ```bash
-chmod +x install.sh
-./install.sh
+curl -fsSL https://get.apollo.systems | bash
 ```
+*(Note: Requires Rust/Cargo and Git installed on the host.)*
 
-### 2. Enter Mission Control
-Type `apollo` to enter the interactive shell:
+### 🔨 Manual Installation
+For secure or air-gapped environments:
 ```bash
-apollo
+git clone --branch apollo-v1.0 https://github.com/elgrhy/apollo.git
+cd apollo
+./install.sh
 ```
 
 ### 3. Start a Node
