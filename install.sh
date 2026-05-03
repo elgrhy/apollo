@@ -15,6 +15,14 @@ fi
 echo "[1/3] Building APOLLO (Deterministic Release Mode)..."
 cargo build --release
 
+# 2.5 Binary Integrity Verification
+echo "🔢 Verifying Binary Integrity..."
+if [ -f "CHECKSUMS.sha256" ]; then
+    shasum -a 256 -c CHECKSUMS.sha256
+else
+    echo "⚠️ Warning: No CHECKSUMS.sha256 found. Manifest generation recommended."
+fi
+
 # 3. Install binaries
 echo "[2/3] Installing binaries to /usr/local/bin/apollo-node/..."
 sudo mkdir -p /usr/local/bin/apollo-node

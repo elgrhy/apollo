@@ -35,6 +35,14 @@ git clone --branch "$VERSION" --depth 1 "$REPO_URL" .
 echo "🏗️ Building Production Binaries..."
 cargo build --release
 
+# 3.5 Binary Integrity Verification
+echo "🔢 Verifying Binary Integrity..."
+if [ -f "CHECKSUMS.sha256" ]; then
+    shasum -a 256 -c CHECKSUMS.sha256
+else
+    echo "⚠️ Warning: No CHECKSUMS.sha256 found in release. Proceeding with caution."
+fi
+
 # 4. Install
 echo "🛡️ Installing to $INSTALL_DIR..."
 sudo mkdir -p "$INSTALL_DIR"
