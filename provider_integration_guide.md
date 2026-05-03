@@ -1,13 +1,13 @@
-# MARS Headless Engine Integration (v1.1)
+# APOLLO Headless Engine Integration (v1.1)
 
-This document defines how hosting providers integrate with a standalone MARS Node. All lifecycle endpoints are now **fully functional**.
+This document defines how hosting providers integrate with a standalone APOLLO Node. All lifecycle endpoints are now **fully functional**.
 
 ## 1. Core Architecture
-MARS is a **Headless Execution Engine**. Providers manage the node via REST API.
+APOLLO is a **Headless Execution Engine**. Providers manage the node via REST API.
 
 ## 2. Authentication
-All requests must include `X-Mars-Key`.
-- **Header**: `X-Mars-Key: <secret>`
+All requests must include `X-Apollo-Key`.
+- **Header**: `X-Apollo-Key: <secret>`
 
 ## 3. Headless API Endpoints
 
@@ -31,6 +31,6 @@ All requests must include `X-Mars-Key`.
 - **Purpose**: Terminates entire process group and releases resources.
 
 ## 4. Operational Checklist
-- **Systemd**: Run `mars node start` as the system daemon.
+- **Systemd**: Run `apollo node start` as the system daemon.
 - **Firewall**: Only expose the node port to your internal control plane.
 - **Monitoring**: Check `/metrics` every 10s for cluster load balancing.

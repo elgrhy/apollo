@@ -1,37 +1,56 @@
-# MARS: Provider-Grade AI Agent Execution Engine
+# APOLLO: Mission Control for Distributed Agents
 
-MARS is a **headless, multi-tenant agent execution runtime** designed specifically for hosting providers (Hostinger, AWS, GCP, etc.). It enables providers to offer secure, isolated, and governed AI agent environments to their customers at scale.
+APOLLO is a production-grade, high-performance execution engine and coordination hub for autonomous AI agents. Designed for infrastructure providers, IT administrators, and SaaS teams, APOLLO provides a secure, observable, and fault-tolerant foundation for running agent-based workloads at scale.
 
-## 🚀 Core Vision: "The Agent Engine"
-MARS is not an agent framework—it is the **infrastructure layer** that runs them. It replaces generic containers with **capability-aware, resource-enforced, and security-hardened** agent sandboxes.
+## 🛰️ Core Identity
+APOLLO is built on a **Mission Control** philosophy:
+*   **Apollo Node**: The standalone execution kernel that provides multi-tenant isolation, process sandboxing, and autonomous recovery.
+*   **Apollo Hub**: The fleet coordination layer that monitors node health, manages registries, and provides a unified view of distributed agent capacity.
+*   **Interactive Shell**: A persistent Mission Control REPL for real-time infrastructure management.
 
-## 🏗️ Architecture
-- **MARS Node (`mars-node`)**: The primary execution daemon. It manages the full agent lifecycle (Add, Run, Stop) via a headless REST API.
-- **MARS Runtime (`mars-runtime`)**: A hardened sandbox layer that enforces CPU/Memory limits, prevents zombie processes, and isolates tenant environments.
-- **MARS Hub (Minimal)**: A lightweight coordination tool for tracking node health and fleet capacity.
+## 🚀 Key Features
+*   **Deterministic Causal Traceability**: Every agent action is linked to its orchestrator via Correlation IDs and a structured Event Spine.
+*   **Adversarial Fault Tolerance**: Chaos-validated against restart storms, frozen nodes, and orphan process leaks.
+*   **Hardened Security**: Environment scrubbing, path canonicalization, and process group containment.
+*   **Infrastructure-Grade Observability**: Real-time audit logs in `.apollo/events.jsonl`.
 
-## 🛡️ Hardened Security
-- **Fleet Auth**: Key-based API authentication (`X-Mars-Key`) with multi-key support.
-- **Resource Enforcement**: Active CPU/Memory monitoring and termination.
-- **Process Sandbox**: Enforced process groups (`setpgid`) to prevent zombie leaks.
-- **Network Firewall**: Default blocking of private ranges and internal network scanning.
+## 📦 Getting Started
 
-## 🛠️ Getting Started
-
-### 1. Build the Engine
+### 1. Install (Global)
+Run the professional installer to set up the Apollo environment:
 ```bash
-cargo build -p mars-node
+chmod +x install.sh
+./install.sh
 ```
 
-### 2. Start the Standalone Node
+### 2. Enter Mission Control
+Type `apollo` to enter the interactive shell:
 ```bash
-./target/debug/mars-node node start --listen 0.0.0.0:8080 --secret-keys YOUR_KEY
+apollo
 ```
 
-### 3. Check Health
+### 3. Start a Node
+Inside the shell or via CLI:
 ```bash
-curl -H "X-Mars-Key: YOUR_KEY" http://localhost:8080/metrics
+apollo node start
 ```
 
-## 📂 Integration Guide
-See the [Provider Integration Guide](.mars/provider_integration_guide.md) for full REST API specifications and deployment strategies.
+### 4. Run your first Agent
+```bash
+apollo agent run openclaw --tenant demo-user
+```
+
+## 🛠️ System Diagnosis
+Use the **Doctor** command to verify the certification status of your infrastructure:
+```bash
+apollo doctor
+```
+
+## 📜 Production Certification
+APOLLO is currently [PRODUCTION CERTIFIED] under the following industrial validation modules:
+*   **HP-CERT** (Hardware Pressure)
+*   **DSI-CERT** (Distributed State Integrity)
+*   **NET-CERT** (Network Resilience)
+
+---
+*Built for elite infrastructure. Powered by the Apollo Causal Engine.*

@@ -1,14 +1,14 @@
-# MARS Hub: Minimal Node Coordination Blueprint
+# APOLLO Hub: Minimal Node Coordination Blueprint
 
-The MARS Hub is a **lightweight coordination layer** designed to track multiple standalone MARS Nodes. It avoids premature complexity and focuses strictly on visibility and basic routing.
+The APOLLO Hub is a **lightweight coordination layer** designed to track multiple standalone APOLLO Nodes. It avoids premature complexity and focuses strictly on visibility and basic routing.
 
 ## 1. Core Architecture (The Light Hub)
 
 ```mermaid
 graph TD
-    Hub[MARS Hub] --> NodeA[MARS Node 1]
-    Hub --> NodeB[MARS Node 2]
-    Hub --> NodeC[MARS Node 3]
+    Hub[APOLLO Hub] --> NodeA[APOLLO Node 1]
+    Hub --> NodeB[APOLLO Node 2]
+    Hub --> NodeC[APOLLO Node 3]
 ```
 
 ## 2. Minimal Responsibilities
@@ -34,12 +34,12 @@ To maintain focus on the core execution engine, the following are **EXCLUDED**:
 - ❌ **No Global UI**: Simple JSON API only.
 
 ## 4. Operational Flow
-1.  **Node Setup**: Provider installs a MARS Node and generates a secret key.
-2.  **Registration**: Provider adds the Node IP/Key to the MARS Hub.
+1.  **Node Setup**: Provider installs a APOLLO Node and generates a secret key.
+2.  **Registration**: Provider adds the Node IP/Key to the APOLLO Hub.
 3.  **Polling**: The Hub starts tracking the node's health and load.
 4.  **Inquiry**: Provider panel asks the Hub: *"Which node has space for a new agent?"*
 5.  **Response**: Hub returns the best Node IP.
 
 ## 5. Strategic Status
-- **Primary Product**: MARS Node (Execution Engine).
-- **Secondary Tool**: MARS Hub (Coordination Layer).
+- **Primary Product**: APOLLO Node (Execution Engine).
+- **Secondary Tool**: APOLLO Hub (Coordination Layer).
