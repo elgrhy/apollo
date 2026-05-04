@@ -1,217 +1,309 @@
-# APOLLO v1.0
-## Enterprise Infrastructure for the Age of Autonomous AI
+# APOLLO v1.2
+## The Agent Execution Layer for Enterprise Infrastructure
 
-**Confidential — For Investors, Infrastructure Providers, and IT Leadership**
-
----
+**Confidential — Providers · Investors · IT Leadership**
 
 ---
 
 # THE PROBLEM
 
-## AI Is Moving Faster Than Infrastructure
+## AI Agents Have No Home
 
-Every organization deploying AI agents faces the same three walls:
-
-**Wall 1 — No Isolation**
-Generic cloud VMs and containers were built for stateless web services. Autonomous agents are long-running, stateful, multi-tenant processes. Running them on generic infrastructure leads to cross-tenant data leaks, zombie processes after crashes, and no audit trail. One bad actor tenant can impact every other workload on the same host.
-
-**Wall 2 — No Reliability Primitive**
-When an agent crashes, nothing recovers it. DevOps teams write custom restart scripts. Orphaned processes accumulate. Memory leaks build up. The operational burden falls on engineers who should be building product.
-
-**Wall 3 — No Visibility**
-There is no standard for what an "agent execution event" looks like. Compliance teams cannot audit agent behavior. Security teams cannot trace what an agent touched. Infrastructure teams cannot answer the question: *which node has capacity right now?*
+Every organization deploying AI agents hits the same three walls — and nobody has solved them at the infrastructure level.
 
 ---
 
-**The result:** infrastructure teams are blocking AI deployments. The bottleneck is not AI capability — it is the absence of a runtime purpose-built for AI agents.
+**Wall 1: No isolation between tenants**
+
+Agents are long-running, stateful processes. When a thousand users run the same agent on the same server, one bad actor can crash every other user's session, read another tenant's files, or exhaust shared memory. Generic cloud VMs were not built for this. The result is security incidents, support escalations, and agents that enterprise IT refuses to approve.
+
+**Wall 2: Always-on is impossible on serverless**
+
+Modern AI agents — the kind connected to WhatsApp, Telegram, email, and Slack — cannot tolerate cold starts. Google Cloud Run and AWS Lambda spin down after inactivity. When a message arrives for a user's agent, a 5-second spin-up is not acceptable. Providers are forced to choose between paying for always-on VMs per user (prohibitively expensive) or delivering a slow, unreliable experience.
+
+**Wall 3: No billing, no observability, no control**
+
+Providers cannot answer basic questions: How much CPU did tenant X consume this month? When did their agent crash? Which node in Frankfurt has capacity for a new user? The data exists scattered across logs, metrics, and process tables — with no standard to query it.
 
 ---
+
+**The result:** Engineering teams are rebuilding the same agent management infrastructure independently, project by project, company by company. The execution layer is missing.
 
 ---
 
 # THE SOLUTION
 
-## APOLLO: A Runtime Built for Agents
+## Apollo — Infrastructure Purpose-Built for AI Agents
 
-APOLLO is a self-hosted, production-certified infrastructure runtime that solves all three walls simultaneously.
+Apollo is a self-hosted, multi-tenant agent execution engine. It runs on your servers, manages the full lifecycle of every agent, isolates every tenant, meters every resource, and exposes a single REST API that your control plane uses to manage the entire fleet.
+
+You bring the servers. Apollo brings everything else.
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│                        APOLLO v1.0                       │
-├────────────────┬─────────────────┬───────────────────────┤
-│  Apollo Node   │   Apollo Hub    │   Apollo Doctor       │
-│                │                 │                       │
-│  Executes and  │  Coordinates    │  Certifies            │
-│  isolates      │  fleets of      │  installation         │
-│  agents        │  nodes          │  health               │
-│  :8080         │  :9090          │  CLI command          │
-└────────────────┴─────────────────┴───────────────────────┘
-         ↑                  ↑
-    Runs on your       Runs on your
-    servers            servers
+┌──────────────────────────────────────────────────────────────────┐
+│                    Your Provider Platform                        │
+│      (billing, user management, dashboard, control plane)        │
+└───────────────────────┬──────────────────────────────────────────┘
+                        │  REST API
+         ┌──────────────▼──────────────────────────────────┐
+         │              Apollo Hub (fleet brain)            │
+         │  Region routing · Auto-scale signals · Catalog  │
+         └──────┬───────────────────┬──────────────────────┘
+                │ 10s poll          │ 10s poll
+    ┌───────────▼────────┐  ┌───────▼──────────────┐
+    │   Apollo Node      │  │   Apollo Node         │
+    │   us-east-1        │  │   eu-west-1           │
+    │   TLS :8443        │  │   TLS :8443           │
+    │   user_1 → agent   │  │   user_9004 → agent   │
+    │   user_2 → agent   │  │   user_9005 → agent   │
+    │   ...              │  │   ...                 │
+    └────────────────────┘  └───────────────────────┘
 ```
 
-**Self-hosted.** No cloud dependency. No data leaves your network.  
-**Production-certified.** Ships with a formal acceptance test and binary integrity verification.  
-**Operator-complete.** IT teams can deploy, run, and maintain it without touching the source code.
-
----
+One Apollo node handles hundreds of concurrent agent processes. The hub coordinates fleets of nodes across any number of regions. Providers integrate once and scale forever.
 
 ---
 
 # HOW IT WORKS
 
-## Three Components. One Coherent System.
+## For a User Signing Up on Hostinger
 
-### Apollo Node — The Execution Engine
+*Hostinger offers "AI agent hosting" — users can activate an openclaw agent from the dashboard.*
 
-The node is a Rust daemon that manages the full lifecycle of AI agent processes on a single host.
+**What the user sees:** Click "Activate openclaw" → "Your agent is ready." → Start chatting.
 
-- Each agent runs in a **dedicated Unix process group** — cannot affect other tenants
-- **Environment scrubbing** — agents inherit zero host secrets or credentials
-- **Internal network blocking** — agents cannot reach private infrastructure ranges
-- **Deterministic port assignment** — hash-based, no port collision across tenants
-- **Pre-flight orphan sweep** on every restart — zero manual cleanup after crashes
-- **REST API** on `:8080` for agent lifecycle management
+**What Apollo does in under 2 seconds:**
 
-One node supports up to 50 concurrent agents by default. Horizontally scalable.
+1. Hostinger's control plane calls `POST /agents/run {"agent":"openclaw","tenant":"user_94812"}` on the least-loaded Apollo node in the nearest region
+2. Apollo creates an isolated workspace at `tenants/user_94812/openclaw/`
+3. Apollo injects the user's OPENAI\_KEY from secure storage (mode 0600, never logged)
+4. Apollo spawns the agent process in a dedicated process group — it cannot touch any other user's files or processes
+5. Apollo fires a signed `AGENT_START` event to Hostinger's webhook for billing and observability
+6. Hostinger's control plane receives `{"port": 34201, "pid": 78890}` and maps the user's session to that port
 
-### Apollo Hub — The Coordination Layer
+When the user disconnects, `DELETE /agents/stop` tears down the process group instantly. CPU-seconds and memory usage have been accumulating in `usage/user_94812.json` since spawn — Hostinger calls `GET /usage/user_94812` at billing time and `POST /usage/user_94812/reset` to start the next cycle.
 
-The hub maintains a real-time map of every node in the fleet.
+The user's agent data — conversation history, downloads, cached state — lives in `volumes/user_94812/openclaw/data/` and persists across every session, restart, and upgrade.
 
-- Polls every node's `/metrics` endpoint on a 30-second cycle
-- Marks nodes `OFFLINE` after two consecutive poll failures
-- Routes new agents to the node with the most available capacity
-- Persists the node registry to disk — survives hub restarts without reconfiguration
+---
 
-Hub failure does not interrupt running agents. Nodes operate independently when the hub is unreachable.
+## For an IT Team Setting Up Apollo at Scale
 
-### Apollo Doctor — The Acceptance Validator
-
-A single command that proves the installation is production-ready:
+**Day 1 — Installation (under 15 minutes):**
 
 ```bash
-apollo doctor
+curl -fsSL https://get.apollo.systems | bash
+apollo doctor   # validates sandbox, auth, event log, binary integrity
 ```
 
-Validates: process sandbox, event spine, state persistence, and binary integrity. Required after every deployment or upgrade.
+```bash
+# Start the node (TLS, JWT, webhook, region)
+apollo node start \
+  --listen 0.0.0.0:8443 \
+  --tls-cert /etc/apollo/node.crt \
+  --tls-key  /etc/apollo/node.key \
+  --secret-keys "key-1,key-2" \
+  --jwt-secret "your-jwt-signing-secret" \
+  --webhook-url https://control.company.com/apollo-events \
+  --region us-east-1
+
+# Register the hub
+apollo-hub start \
+  --webhook-url https://control.company.com/apollo-scale \
+  --scale-threshold 0.80
+```
+
+**Day 7 — Fleet grows to 10 nodes across 3 regions.**
+Hub routes every new agent request to the least-loaded node in the right region. No manual load balancing. No configuration changes.
+
+**Day 30 — 50,000 active tenants.**
+Each tenant has isolated storage, individual resource metering, and secrets that only their agents can see. IT receives a monthly CSV from `GET /usage` — billable hours computed to the second. Audit log has recorded every agent start, stop, crash, and recovery since Day 1.
+
+**Standard operating tasks require no developer escalation:**
+
+| Task | How |
+|------|-----|
+| Rotate an API key | Add new key to `--secret-keys`, remove old key after cutover |
+| Deploy a new agent version | `POST /agents/add {"source": "https://github.com/org/agent.git"}` — Apollo fetches, validates, backs up old version |
+| Roll back an agent | `POST /agents/rollback {"agent":"openclaw"}` — restores previous version in < 1 second |
+| Check fleet capacity | `GET http://hub:9191/summary` |
+| Trigger auto-scale | Automatic — hub fires webhook when fleet utilization exceeds 80% |
+| Reset billing period | `POST /usage/{tenant_id}/reset` |
 
 ---
 
+## The Cloud Run Problem — Solved
+
+Google Cloud Run, AWS Lambda, and similar serverless platforms spin down containers after inactivity. A user's openclaw agent connected to their WhatsApp account needs to respond within seconds — not after a 5-second cold start.
+
+**Without Apollo:** Provider runs a Cloud Run service per user. Costs $0.10/user/month at rest. But every cold start takes 3–8 seconds. Users complain. Engineers add always-warm keepalive pings. The workaround costs more than the saving.
+
+**With Apollo:** One Apollo node runs 200 agent processes simultaneously, always warm. At $50/month for the VM, the cost per user at 200 tenants is $0.25/month — with zero cold starts, full isolation, and instant response.
+
+When 200 users become 2,000, Apollo's scale webhook fires automatically:
+
+```json
+{
+  "event": "SCALE_NEEDED",
+  "message": "Fleet at 1800/2000 capacity",
+  "status": "alert"
+}
+```
+
+Your control plane receives this, provisions a new VM, runs the one-line installer, registers the node with the hub — and capacity doubles without touching the running fleet.
+
+```python
+# openclaw inside Apollo — zero cold start, always warm
+import os, asyncio
+
+OPENAI_KEY = os.environ["OPENAI_KEY"]      # injected by Apollo at spawn
+DATA_DIR   = os.environ["APOLLO_VOLUME_DATA"]  # persistent per-tenant storage
+
+async def handle_message(user_message: str) -> str:
+    # respond immediately — no cold start, process has been warm since activation
+    ...
+```
+
 ---
 
-# THE AUDIT TRAIL
+# WHAT APOLLO DELIVERS
 
-## Compliance-Grade Observability, Built In
+## Complete Enterprise Feature Set (v1.2)
 
-Every agent lifecycle transition is written to an **append-only event spine**:
-
-```
-/var/lib/apollo/.apollo/events.jsonl
-```
-
-Each event carries a correlation ID linking it to the originating orchestrator. The log survives crashes, restarts, and hub failures. It is the authoritative record of everything APOLLO did on your infrastructure.
-
-This is the foundation of a SOC2-compatible audit trail without any additional tooling.
-
----
+| Capability | Mechanism |
+|-----------|-----------|
+| **Multi-tenant isolation** | Dedicated process group + workspace per tenant; `killpg` clears entire subtree |
+| **TLS / HTTPS** | `rustls` via axum-server; cert + key at startup; no separate terminator needed |
+| **JWT + key auth** | `X-Apollo-Key` OR `Authorization: Bearer` HS256-JWT; scoped tokens per sub-operator |
+| **Per-tenant secrets** | Stored at mode 0600; injected at spawn; never logged |
+| **Usage metering** | CPU-seconds + memory-GB-seconds per tenant; 60s sampling; reset API for billing cycles |
+| **Persistent volumes** | Per-tenant, per-agent storage; survives restarts, rollbacks, upgrades |
+| **Webhook events** | HMAC-SHA256 signed; AGENT\_START, AGENT\_STOP, CAPACITY\_WARNING, SCALE\_NEEDED |
+| **Auto-scale alerting** | Hub fires on configurable threshold (default 80%); re-arms after scale-down |
+| **Multi-region routing** | `/nodes/best?region=X`; `/regions` per-region capacity; region tag per node |
+| **Rate limiting** | Per-key token bucket, 100 RPS; 429 on breach |
+| **Agent versioning** | Backup on re-register; `POST /agents/rollback` restores previous version |
+| **Runtime auto-install** | `runtime.install` in agent.yaml; Apollo downloads + installs runtime on first use |
+| **Any language** | Python, Node, Go, Deno, Bun, Ruby, PHP, Java, .NET, Rust, Shell, or any custom command |
+| **Audit trail** | Append-only `events.jsonl`; every lifecycle event recorded |
+| **Cross-platform** | Linux, macOS, Windows; `aarch64` and `x86_64` |
 
 ---
 
 # SECURITY MODEL
 
-## Defense in Depth, at the Process Level
+## Defense in Depth — No Cloud Required
+
+Apollo is designed for private network deployment. No component requires internet access at runtime. No telemetry leaves the server.
 
 | Layer | Control |
-|:---|:---|
-| Tenant isolation | Filesystem workspace per tenant; path canonicalization prevents escapes |
-| Process containment | `setpgid` on launch; `killpg` on termination — entire process tree is killed |
-| Environment sanitization | Agent subprocesses receive a fully scrubbed environment |
-| Network kill-switch | RFC 1918 blocking prevents agents from probing internal infrastructure |
-| API authentication | `X-Apollo-Key` header required on all management endpoints |
-| Key rotation | Multiple active keys supported — rotate without downtime |
-| Binary integrity | SHA-256 manifest verified before every install |
-| Audit log | Append-only; tamper-evident event record |
+|-------|---------|
+| **Tenant isolation** | Filesystem workspace per tenant; `harden_path()` canonicalization prevents escapes |
+| **Process containment** | `setpgid` on launch; `killpg` on termination — entire process tree killed |
+| **Environment sanitization** | `env_clear()` before spawn; only Apollo vars + tenant secrets + sanitized PATH |
+| **Secrets protection** | Mode 0600 storage; loaded only at spawn; excluded from all API responses |
+| **Auth** | X-Apollo-Key (multi-key, rotation-safe) + JWT (scoped tokens for sub-operators) |
+| **Transport** | TLS via rustls; no plaintext required in production |
+| **Webhook integrity** | HMAC-SHA256 signature on every outbound event |
+| **Audit log** | Append-only; tamper-evident; SOC2 Type II compatible |
+| **Binary integrity** | SHA-256 manifest verified at install; `apollo doctor` validates on every deployment |
 
-**APOLLO is designed for private network deployment.** The node and hub APIs are internal-only. No component requires internet access at runtime.
-
-This model satisfies the core requirements of SOC2 Type II infrastructure reviews: isolation, traceability, and access control.
-
----
+This model satisfies the core requirements of enterprise security reviews: isolation, traceability, access control, and encrypted transport — built in, not bolted on.
 
 ---
 
-# RELIABILITY
+# FOR INVESTORS
 
-## Engineered for Operators, Not Developers
+## The Missing Infrastructure Layer
 
-| Scenario | APOLLO Behavior |
-|:---|:---|
-| Node process crashes | systemd restarts it in < 10 seconds |
-| Node host reboots | Node daemon starts on boot; orphan sweep runs automatically |
-| Agent process hangs | Process group termination (`killpg`) clears the entire subtree in < 1 second |
-| Hub goes offline | Nodes continue running; existing agents are unaffected |
-| Network partition | Affected nodes enter DEGRADED state; auto-recover when connectivity returns |
-| Disk saturation | Log rotation prevents I/O stalls; node enters stable degradation |
+The market for AI agent tooling has split in two: tools for *building* agents (LangChain, AutoGen, CrewAI) and tools for *deploying* them (nothing purpose-built). Apollo fills the gap that every infrastructure provider and enterprise IT team is currently solving by hand.
 
-**Nothing requires manual intervention under normal failure modes.**
+### The Moat
 
-### Performance Baselines
+**Trust moat:** Enterprises and regulated industries cannot send agent execution to a third-party cloud. Data residency laws, compliance requirements, and security policies demand on-premises or private-cloud execution. Apollo is self-hosted by design — it runs on the customer's own infrastructure under their own security controls.
 
-| Metric | Target |
-|:---|:---|
-| Node availability | 99.5% per calendar month |
-| Automatic crash recovery | < 10 seconds |
-| Agent startup latency | < 2 seconds |
-| Agent stop latency | < 1 second |
-| API response time (p99) | < 200 ms |
-| Max agents per node | 50 (configurable) |
+**Compliance moat:** Apollo's audit trail, tenant isolation, and access controls are architectural decisions, not features. Competitors retrofitting compliance onto generic infrastructure will be years behind on the institutional approval process that Apollo already satisfies.
+
+**Switching cost:** Once a provider's platform is integrated against Apollo's REST API, their agent lifecycle depends on Apollo. Audit logs accumulate. Tenant workspaces are managed by Apollo. Volumes contain years of per-user data. The integration cost of switching is real and compounds over time.
+
+**Distribution lock-in:** SHA-256 verified releases, one-line installer, `apollo doctor` acceptance test. Every deployment is a versioned, cryptographically verified artifact. Upgrades are controlled. Rollbacks are safe. This creates a clean licensing surface.
+
+### Market Opportunity
+
+Every infrastructure provider adding AI capabilities faces this problem:
+
+- **Web hosting (Hostinger, GoDaddy):** Millions of users, agent-per-user economics require $0.25/user/month infrastructure, not $5/user/month
+- **Cloud providers (AWS, GCP, Azure):** Managed agent execution is a tier above managed containers — higher margin, longer lock-in
+- **Enterprise IT (Fortune 500):** AI agents touching internal data require on-premises execution with audit trails that survive a SOC2 review
+- **AI product companies (openclaw, others):** Need a runtime to distribute their agents — Apollo becomes the distribution layer
+
+### Current Status
+
+- v1.2 is production-certified and feature-complete for enterprise requirements
+- Binary integrity verification is live
+- One-line installer is live (`get.apollo.systems`)
+- Complete documentation: CLAUDE.md, Scenarios.md, provider integration guide, enterprise approval pack
+- System is ready for pilot deployments
+
+### The Ask
+
+Apollo needs two things to reach commercial scale:
+
+1. **Pilot customers** — 2–3 infrastructure providers to run production workloads and provide structured feedback under NDA
+2. **Distribution** — visibility in the infrastructure provider and enterprise IT communities where deployment decisions are made
+
+Engineering is complete. Product is complete. The gap is go-to-market.
 
 ---
 
----
+# FOR PROVIDERS
 
-# FOR INFRASTRUCTURE PROVIDERS
+## Integrate in an Afternoon
 
-## Add Agent Hosting to Your Existing Platform in Hours
+Apollo exposes a single REST API. Your control plane talks to Apollo nodes the same way it talks to any internal service.
 
-APOLLO integrates into any existing infrastructure platform through a simple REST API. Your control plane talks to APOLLO nodes the same way it talks to any other internal service.
+### Integration Checklist
 
-### Integration Pattern
+```bash
+# 1. Install on each node (< 5 minutes)
+curl -fsSL https://get.apollo.systems | bash
+apollo doctor
 
+# 2. Start the node
+apollo node start --listen 0.0.0.0:8443 \
+  --tls-cert cert.pem --tls-key key.pem \
+  --secret-keys "your-key" \
+  --webhook-url https://your-control-plane/apollo-events \
+  --region us-east-1
+
+# 3. Register your agent once
+curl -X POST https://node:8443/agents/add \
+  -H "X-Apollo-Key: your-key" \
+  -d '{"source": "https://github.com/your-org/your-agent.git"}'
+
+# 4. Store user secrets
+curl -X PUT https://node:8443/tenants/{user_id}/secrets \
+  -H "X-Apollo-Key: your-key" \
+  -d '{"secrets": {"OPENAI_KEY": "sk-...", "TELEGRAM_TOKEN": "bot:..."}}'
+
+# 5. Start an agent for each user
+curl -X POST https://node:8443/agents/run \
+  -H "X-Apollo-Key: your-key" \
+  -d '{"agent":"your-agent","tenant":"{user_id}"}'
+
+# 6. Bill by usage
+curl https://node:8443/usage/{user_id} -H "X-Apollo-Key: your-key"
+curl -X POST https://node:8443/usage/{user_id}/reset -H "X-Apollo-Key: your-key"
 ```
-Your Platform                    APOLLO Node
-─────────────    ─────────────────────────────
-User requests                    
-agent launch  →  POST /agents/run  →  Agent running
-                                      PID + port returned
-
-Check capacity →  GET /metrics     →  {"active_agents": 12,
-                                        "max_agents": 50}
-
-Terminate     →  DELETE /agents/stop → Process group killed
-                                        Resources released
-```
-
-### What You Get
-
-- **Immediate multi-tenancy** — APOLLO handles all isolation, your platform just passes a tenant ID
-- **Capacity-aware routing** — ask the hub which node has space, get a deterministic answer
-- **No agent runtime to build** — APOLLO is the runtime; you build the product layer on top
-- **Compliance-ready from day one** — audit log ships with every deployment
 
 ### What You Keep
 
-- Your billing system
-- Your user management
-- Your dashboard
-- Your existing infrastructure
+- Your billing system (Apollo provides the usage data, you run the billing logic)
+- Your user management (Apollo takes a tenant ID, you manage what it maps to)
+- Your dashboard (Apollo provides the API, you build the UI)
+- Your existing infrastructure (Apollo runs on whatever servers you already have)
 
-APOLLO is infrastructure, not a platform. It does not replace your system — it makes your system capable of running AI agents.
-
----
+Apollo is infrastructure, not a platform. It plugs into your system; it does not replace it.
 
 ---
 
@@ -219,144 +311,47 @@ APOLLO is infrastructure, not a platform. It does not replace your system — it
 
 ## Deploy Once. Operate Indefinitely.
 
-APOLLO is designed to reach a state where it requires zero developer involvement to operate.
+Apollo reaches a state where it requires zero developer involvement to maintain. Standard failure modes are self-healing. Observability is built in. Compliance readiness ships with the binary.
 
-### Day 1: Installation
+### Compliance Readiness
 
-```bash
-curl -fsSL https://get.apollo.systems | bash
-apollo doctor  # all checks must return OK
-```
-
-Time to production-certified installation: under 15 minutes on a provisioned server.
-
-### Day 2+: Operations
-
-| Task | How |
-|:---|:---|
-| Start/stop services | `systemctl start/stop apollo-node` |
-| Monitor health | `journalctl -u apollo-node -f` |
-| Check fleet capacity | `curl http://hub:9090/nodes/status` |
-| Verify a node is healthy | `apollo doctor` |
-| View agent audit log | `tail -f /var/lib/apollo/.apollo/events.jsonl` |
-| Rotate authentication keys | Add new key to `--secret-keys`, remove old key after verification |
-| Upgrade to a patch release | Pull new tag, rebuild, `./install.sh`, `apollo doctor` |
+| Requirement | Apollo Status |
+|-------------|---------------|
+| Tenant data isolation | Enforced at filesystem and process level — architectural, not configurable |
+| Audit trail | Append-only event log; every lifecycle event recorded with timestamps |
+| Access control | API key + JWT; multiple keys for rotation; scoped tokens for sub-operators |
+| Encrypted transport | TLS via rustls; cert management is operator responsibility |
+| Process containment | Unix process groups; no cross-tenant process visibility |
+| Secret protection | Mode 0600 storage; secrets never appear in logs or API responses |
+| Reproducible deployments | SHA-256 verified binaries; `apollo doctor` acceptance test on every deployment |
 
 ### Operational Guarantees
 
 - **No manual process cleanup** — orphan sweep runs on every restart
-- **No manual state reconstruction** — node registry and audit log survive crashes
+- **No manual state reconstruction** — all state files survive crashes and reboots
 - **No silent failures** — every failure mode is observable via systemd journal or audit log
 - **No developer escalation for standard failure modes** — recovery is automatic
-
-### Compliance Readiness
-
-| Requirement | Status |
-|:---|:---|
-| Tenant data isolation | Enforced at filesystem and process level |
-| Audit trail | Append-only event log; every lifecycle event recorded |
-| Access control | API key authentication with rotation support |
-| Process containment | Unix process groups; no cross-tenant process visibility |
-| Reproducible deployments | SHA-256 verified binaries; frozen v1.0 architecture |
-
----
-
----
-
-# FOR INVESTORS
-
-## The Infrastructure Layer That AI Deployments Are Missing
-
-### Market Context
-
-The AI agent market is growing at a rate that infrastructure has not kept pace with. Every organization adopting AI faces the same infrastructure gap: the execution layer. The tooling for *building* agents has matured. The tooling for *running* agents at scale, securely, with auditability, has not.
-
-APOLLO is the execution layer.
-
-### The Moat
-
-APOLLO is not a cloud service or a managed platform. It is a **self-hosted runtime** — installed once on the customer's own infrastructure. This creates several durable advantages:
-
-**1. Trust Moat**
-Enterprises and regulated industries cannot send AI agent execution to a third-party cloud. They need execution on their own servers, under their own security controls. APOLLO is the only option that satisfies this constraint out of the box.
-
-**2. Compliance Moat**
-APOLLO's append-only audit log and tenant isolation model are designed to satisfy SOC2 Type II requirements. This is not a feature — it is an architectural decision baked into the runtime. Competitors building on top of generic infrastructure will have to retrofit compliance after the fact.
-
-**3. Switching Cost**
-Once a provider's platform is integrated with APOLLO's REST API, their agent lifecycle management depends on APOLLO. Audit logs accumulate. Tenant workspaces are managed by APOLLO. Switching to an alternative runtime requires re-integrating every layer that touches agent execution.
-
-**4. Distribution Lock-In**
-APOLLO is distributed via a private GitHub repository with SHA-256 verified releases. Every deployment is a versioned, cryptographically verified artifact. This creates a clean upgrade and licensing surface.
-
-### Business Model Options
-
-| Model | Description | Best For |
-|:---|:---|:---|
-| **Per-node license** | Annual fee per active apollo-node deployment | Predictable, scales with customer fleet size |
-| **Per-agent-hour** | Metered usage based on agent runtime | Usage-aligned, lower barrier to entry |
-| **Enterprise license** | Flat annual fee for unlimited nodes | Large enterprise, simplified procurement |
-| **Managed deployment** | Premium tier with SLA backing and support | Providers who want hands-off operations |
-
-Note: APOLLO itself has no usage telemetry and does not phone home. Metering, if implemented, lives in the provider's control plane — APOLLO's `/metrics` endpoint provides the data.
-
-### Traction
-
-- v1.0 is production-certified and frozen
-- Binary integrity verification system is live
-- One-line installer is live (`get.apollo.systems`)
-- Enterprise approval pack, SLA, and onboarding documentation are complete
-- System is ready for first pilot deployments
-
-### The Ask
-
-APOLLO needs two things to reach commercial scale:
-
-1. **Pilot customers** — 2–3 infrastructure providers to run production workloads on v1.0 and provide structured feedback
-2. **Distribution** — visibility in the infrastructure provider and enterprise IT communities where the deployment decision is made
-
-The engineering is complete. The product is complete. The gap is go-to-market.
-
----
-
----
-
-# VERSION STRATEGY
-
-## v1.0 Is Frozen. That Is a Feature.
-
-APOLLO v1.0 will not change its architecture, API contracts, or audit log schema. Ever.
-
-Providers who integrate against v1.0 will not have their integration broken by a future release. IT teams who certify a v1.0 deployment will not need to re-certify it when a patch ships.
-
-| Series | Scope |
-|:---|:---|
-| `v1.0` | Frozen baseline. Architecture and API contracts permanent. |
-| `v1.0.x` | Security fixes, crash fixes, memory leaks, installer fixes only. |
-| `v1.1+` | Future. Not planned. Will not affect v1.0 deployments. |
-
-Every v1.0.x patch ships with updated checksums and must pass the unmodified `apollo doctor` acceptance test before release.
-
----
+- **No cross-tenant incidents** — process group isolation means one tenant crash cannot affect others
 
 ---
 
 # SUMMARY
 
-| Audience | What APOLLO Delivers |
-|:---|:---|
-| **Investors** | The missing infrastructure layer for enterprise AI deployments, with a trust and compliance moat and a clear licensing surface |
-| **Infrastructure Providers** | A REST API that turns any server into a multi-tenant, compliance-ready AI agent host — integrate in hours, not weeks |
-| **IT Management** | Self-healing, auditable, and operator-complete infrastructure that runs without developer escalation |
+| Audience | What Apollo Delivers |
+|----------|----------------------|
+| **Investors** | The missing execution layer for enterprise AI — trust moat, compliance moat, switching cost, and a clean licensing surface against a market that is re-inventing this infrastructure independently at every company |
+| **Infrastructure Providers** | A REST API that turns any server into a multi-tenant, compliance-ready, billing-aware AI agent host — integrate in hours, scale to millions of tenants |
+| **IT Management** | Self-healing, auditable, TLS-secured infrastructure that runs without developer escalation and satisfies SOC2 Type II requirements out of the box |
+| **AI Product Companies** | A runtime that distributes your agent to any provider's infrastructure — one agent package, any server, any region, any scale |
 
 ---
 
-## Contact
+## Contact & Distribution
 
-**Distribution repository:** `git@github.com:elgrhy/apollo.git`  
-**Installer:** `curl -fsSL https://get.apollo.systems | bash`  
+**Distribution repository:** `git@github.com:elgrhy/apollo.git`
+**Installer:** `curl -fsSL https://get.apollo.systems | bash`
 **Acceptance test:** `apollo doctor`
 
 ---
 
-*APOLLO v1.0 — Built for elite infrastructure.*
+*Apollo v1.2 — Built for elite infrastructure. TLS. JWT. Billing. Secrets. Webhooks. Multi-region.*
